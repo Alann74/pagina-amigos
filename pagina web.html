@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Botón Gigante</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+        }
+        button {
+            font-size: 3em;
+            padding: 40px 40px;
+            border: none;
+            border-radius: 104px;
+            cursor: pointer;
+            background-color: #ff0000;
+            color: white;
+            transition: 0.3s;
+            margin-top: -300px;
+        }
+        button:hover {
+            background-color: #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <button onclick="mostrarMensaje()">¡Presióname!</button>
+    <script>
+        function mostrarMensaje() {
+            alert('El que lee es gay');
+        }
+    </script>
+</body>
+</html>
