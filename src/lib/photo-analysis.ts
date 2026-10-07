@@ -7,7 +7,7 @@ import { classifyPhoto } from "@/lib/photo-classify";
 // Control del clasificador sin mirar las fotos: % de píxeles con tono de piel y % de borde blanco.
 // Una foto con modelo tiene piel visible; la prenda sola, casi nada y el borde blanco.
 
-async function features(data: Buffer) {
+export async function photoFeatures(data: Buffer) {
   const { data: px, info } = await sharp(data, { failOn: "none" }).flatten({ background: "#ffffff" }).resize(96, 128, { fit: "fill" }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   let skin = 0;
   let white = 0;
@@ -37,8 +37,8 @@ export async function classificationReport() {
   const byKind = new Map<string, { title: string; skin: number; borde: number }[]>();
   for (const r of rows) {
     const c = r.title ? classifyPhoto(r.title) : null;
-    const kind = c ? `${c.kind}${r.title && /\.png$/i.test(r.title) ? "-png" : "-jpg"}` : "sin-nombre";
-    const f = await features(r.data).catch(() => null);
+    const kind = c ? `${c.kind}${c.dudosa ? "-dudosa" : ""}${r.title && /\.png$/i.test(r.title) ? "-png" : "-jpg"}` : "sin-nombre";
+    const f = await photoFeatures(r.data).catch(() => null);
     if (!f) continue;
     byKind.set(kind, [...(byKind.get(kind) ?? []), { title: r.title ?? "", ...f }]);
   }

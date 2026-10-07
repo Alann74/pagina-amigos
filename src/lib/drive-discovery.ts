@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { products, settings } from "@/db/schema";
 import { listPublicFolder, type DriveEntry } from "@/lib/drive-folder";
 import type { DriveMatch } from "@/lib/drive-import";
-import { classifyPhoto, compareRank, photoRank, sameShotKey } from "@/lib/photo-classify";
+import { baseTitle, classifyPhoto, compareRank, photoRank, sameShotKey } from "@/lib/photo-classify";
 
 // Búsqueda de fotos en las carpetas de Drive de Temporada 3 (compartidas con "cualquiera con el enlace").
 // Cada foto va a los artículos cuyo código figura en el nombre del archivo; las repetidas por nombre se
@@ -11,7 +11,6 @@ import { classifyPhoto, compareRank, photoRank, sameShotKey } from "@/lib/photo-
 
 export const PHOTO_FOLDERS = [
   { id: "1DAWlthDwVh0aKYfG8S2TitWdGhDPHdhI", nombre: "Capsulas INEDITA / CAPSULAS FOTOS SOLAS" },
-  { id: "11Fhw_weCSbFMdp8dHj67DlkcpYR3NPJg", nombre: "FOTOS DE CAPSULAS LIMPIAS / TODAS" },
   { id: "1OONS8nEyZYsW1O4oOTfk4OWj819bxBgi", nombre: "FOTOS DE CAPSULAS LIMPIAS" },
 ];
 
@@ -38,7 +37,7 @@ export async function discoverDrivePhotos(): Promise<Discovery> {
       const entries = await listPublicFolder(id);
       carpetas.push({ nombre, archivos: entries.filter((e) => !e.folder).length });
       for (const e of entries) {
-        if (e.folder && depth < 2) await walk(e.id, `${nombre} / ${e.title}`, depth + 1);
+        if (e.folder && depth < 3) await walk(e.id, `${nombre} / ${e.title}`, depth + 1);
         else if (!e.folder && IMAGE.test(e.title) && !seen.has(e.id)) {
           seen.add(e.id);
           files.push(e);
@@ -50,14 +49,14 @@ export async function discoverDrivePhotos(): Promise<Discovery> {
   };
   for (const f of PHOTO_FOLDERS) await walk(f.id, f.nombre, 0);
 
-  // Mismo nombre en dos carpetas → una sola. Misma toma con y sin "_limpia" → la limpia.
-  const byTitle = new Map<string, DriveEntry>();
-  for (const f of files) if (!byTitle.has(f.title.toLowerCase())) byTitle.set(f.title.toLowerCase(), f);
+  // Mismo nombre en dos carpetas o "Copia de …" → una sola. Misma toma con y sin "_limpia" → la limpia.
+  const limpia = (t: string) => /_limpia/i.test(t);
+  const copia = (t: string) => baseTitle(t) !== t;
   const byShot = new Map<string, DriveEntry>();
-  for (const f of byTitle.values()) {
+  for (const f of files) {
     const key = sameShotKey(f.title);
     const prev = byShot.get(key);
-    if (!prev || (/_limpia/i.test(f.title) && !/_limpia/i.test(prev.title))) byShot.set(key, f);
+    if (!prev || (limpia(f.title) && !limpia(prev.title)) || (limpia(f.title) === limpia(prev.title) && copia(prev.title) && !copia(f.title))) byShot.set(key, f);
   }
 
   const perArticle = new Map<string, { m: DriveMatch; rank: number[] }[]>();

@@ -245,6 +245,9 @@ export async function reorderImages(productId: number, orderedIds: number[]): Pr
     for (const [i, id] of orderedIds.entries()) {
       await db.update(productImages).set({ sortOrder: i }).where(and(eq(productImages.id, id), eq(productImages.productId, productId)));
     }
+    // Ordenadas a mano: el deploy no las vuelve a ordenar solo
+    const { markManualOrder } = await import("@/lib/photo-order");
+    await markManualOrder(productId);
     catalogChanged();
     return { ok: true };
   } catch (e) {

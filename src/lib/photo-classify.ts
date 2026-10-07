@@ -3,6 +3,7 @@
 //   1) la mejor foto de la modelo con la prenda (campaña "_limpia", la de número más bajo)
 //   2) otras fotos de la modelo (más campaña, tomas "39606 3.jpg", conjuntos "SET CON" / "39164 39863 11.jpg")
 //   3) la prenda sola, en el aire o fondo limpio ("39603-2_BLANCO.png", frente y después espalda "ESP")
+//      ("39603-1.png", sin color, es la de la modelo en el catálogo)
 //   4) detalles (si el nombre dice detalle, zoom o textura)
 
 export type PhotoKind = "campana" | "modelo" | "look" | "catalogo" | "detalle";
@@ -14,11 +15,22 @@ export type ClassifiedPhoto = {
   back: boolean;
   codes: string[]; // todos los artículos que aparecen en el nombre
   primary: string[]; // los de la prenda principal (antes de "SET CON")
+  /** El nombre no alcanza para saber si está la modelo: se confirma mirando la foto (ver photo-order). */
+  dudosa?: true;
 };
+
+/** El nombre sin "Copia de" (copias hechas en Drive) ni "(1)" al final: es la misma foto. */
+export function baseTitle(title: string): string {
+  return title
+    .replace(/^(?:\s*(?:copia de|copy of)\s+)+/i, "")
+    .replace(/\s*\(\d+\)(?=\.\w+$|$)/, "")
+    .trim();
+}
 
 const COLOR_FIX: Record<string, string> = { CHOCO: "CHOCOLATE", "AZUL MARINO": "MARINO", OLIVIA: "OLIVA" };
 
-export function classifyPhoto(title: string): ClassifiedPhoto | null {
+export function classifyPhoto(rawTitle: string): ClassifiedPhoto | null {
+  const title = baseTitle(rawTitle);
   const ext = (title.match(/\.(jpe?g|png|webp|heic)$/i)?.[1] ?? "").toLowerCase();
   const clean = title.replace(/\.(jpe?g|png|webp|heic)$/i, "").replace(/^_+/, "").trim();
   const [primaryPart, setPart] = clean.split(/_SET CON /i);
@@ -38,6 +50,8 @@ export function classifyPhoto(title: string): ClassifiedPhoto | null {
     const order = cat[2] ? Number(cat[2]) : 0;
     // JPG numerado sin color ("39606 1.jpg"): toma de la sesión de fotos, con modelo
     if (ext !== "png" && !color && !back) return { kind: "modelo", order, color: null, back: false, codes, primary };
+    // PNG numerado sin color ("39405-1.png"): en el catálogo es la foto con la modelo; se confirma mirándola
+    if (!color && !back) return { kind: "modelo", order, color: null, back: false, codes, primary, dudosa: true };
     return { kind: "catalogo", order, color, back, codes, primary };
   }
   // Varias prendas en la foto: conjunto con modelo
@@ -71,7 +85,7 @@ export function compareRank(a: number[], b: number[]): number {
 
 /** Misma toma con dos nombres: "39606 1.jpg" y "39606 1_limpia.jpg" → se queda la "limpia". */
 export function sameShotKey(title: string): string {
-  return title
+  return baseTitle(title)
     .toLowerCase()
     .replace(/\.(jpe?g|png|webp|heic)$/i, "")
     .replace(/_limpia$/i, "")

@@ -10,7 +10,14 @@ test("clasifica por el nombre del archivo", () => {
   assert.deepEqual(classifyPhoto("39603-2_BLANCO.png"), { kind: "catalogo", order: 2, color: "BLANCO", back: false, codes: ["39603"], primary: ["39603"] });
   assert.equal(classifyPhoto("39603-3_BLANCO ESP.png")?.back, true);
   assert.equal(classifyPhoto("39269 CHOCO ESP.png")?.color, "CHOCOLATE");
-  assert.equal(classifyPhoto("39200-1.png")?.kind, "catalogo");
+  // PNG numerada sin color: la de la modelo en el catálogo (se confirma mirando la foto)
+  assert.equal(classifyPhoto("39200-1.png")?.kind, "modelo");
+  assert.equal(classifyPhoto("39200-1.png")?.dudosa, true);
+  // Copias hechas en Drive: misma clasificación y misma toma
+  assert.deepEqual(classifyPhoto("Copia de 39907-2_BLANCO.png"), classifyPhoto("39907-2_BLANCO.png"));
+  assert.equal(classifyPhoto("Copia de 39907-2_BLANCO.png")?.kind, "catalogo");
+  assert.equal(sameShotKey("Copia de 39405-1.png"), sameShotKey("39405-1.png"));
+  assert.equal(sameShotKey("39405-1 (1).png"), sameShotKey("39405-1.png"));
   assert.equal(classifyPhoto("39164 39863 11.jpg")?.kind, "look");
   assert.deepEqual(classifyPhoto("__17.A-39864_SET CON 39865_limpia.jpg")?.primary, ["39864"]);
   assert.equal(classifyPhoto("Portada_Reel.jpg"), null);
@@ -21,6 +28,19 @@ test("orden: modelo primero, después la prenda sola (frente y espalda)", () => 
   const sorted = titles.map((t) => ({ t, r: photoRank(classifyPhoto(t)!, "39603") })).sort((a, b) => compareRank(a.r, b.r)).map((x) => x.t);
   assert.deepEqual(sorted, ["__7-39603_limpia.jpg", "39603 4.jpg", "39603 39419 2.jpg", "39603-2_BLANCO.png", "39603-3_BLANCO ESP.png"]);
   assert.equal(sameShotKey("39606 1_limpia.jpg"), sameShotKey("39606 1.jpg"));
+});
+
+test("orden con la foto de la modelo del catálogo (PNG sin color)", () => {
+  const titles = ["39405-3_GRAFITO ESP.png", "39405-2_GRAFITO.png", "__9-39405-35037_limpia.png", "39405-1.png", "39405-4_BLANCO.png"];
+  const sorted = titles.map((t) => ({ t, r: photoRank(classifyPhoto(t)!, "39405") })).sort((a, b) => compareRank(a.r, b.r)).map((x) => x.t);
+  assert.deepEqual(sorted, ["39405-1.png", "__9-39405-35037_limpia.png", "39405-2_GRAFITO.png", "39405-3_GRAFITO ESP.png", "39405-4_BLANCO.png"]);
+});
+
+test("prenda sola: sin piel y con borde blanco", async () => {
+  const { looksLikeFlat } = await import("../../src/lib/photo-order");
+  assert.equal(looksLikeFlat({ skin: 0, borde: 100 }), true);
+  assert.equal(looksLikeFlat({ skin: 65.8, borde: 50 }), false);
+  assert.equal(looksLikeFlat({ skin: 1, borde: 40 }), false);
 });
 
 test("huella: la misma foto sí, otro color o la espalda no", async () => {

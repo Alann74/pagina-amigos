@@ -1,13 +1,13 @@
 // En cada deploy, antes de armar las páginas: pasa a la base las fotos que estaban en Vercel Blob,
 // importa las fotos de Drive que falten, las ordena (modelo primero) y revisa que existan todas.
 // Nunca frena el deploy.   tsx scripts/photos.ts
-import { syncPhotoOrder } from "../src/lib/drive-import";
 import { importPendingPhotos, logImport, migrateCampaignToDb, migrateImagesToDb, photoProgress } from "../src/lib/photo-autoimport";
 import { discoverDrivePhotos } from "../src/lib/drive-discovery";
 import { classificationReport } from "../src/lib/photo-analysis";
 import { liveCheck } from "../src/lib/live-check";
 import { checkAllProductPhotos } from "../src/lib/photo-check";
 import { backfillHashes, crossProductReport, removeDuplicatePhotos } from "../src/lib/photo-dedupe";
+import { syncPhotoOrder } from "../src/lib/photo-order";
 
 const BUDGET = Number(process.env.PHOTO_IMPORT_BUDGET_MS ?? 14 * 60_000);
 
@@ -37,10 +37,10 @@ async function main() {
     await logImport({ paso: "deploy", importadas: r.imported, errores: r.errors.slice(0, 15), cantidadErrores: r.errors.length, pendiente: r.pending });
     console.log(`[fotos] Importadas ${r.imported} fotos nuevas${r.errors.length ? ` (${r.errors.length} con error)` : ""}${r.pending ? " · quedan pendientes" : ""}`);
   }
-  console.log(`[fotos] Orden: ${await syncPhotoOrder()} fotos reordenadas`);
   console.log(`[fotos] Huellas calculadas: ${await backfillHashes()}`);
   const removed = await removeDuplicatePhotos();
   console.log(`[fotos] Repetidas quitadas: ${removed.length}`);
+  console.log(`[fotos] Orden: ${await syncPhotoOrder()} fotos reordenadas`);
   await classificationReport().catch((e) => console.error("[fotos] Análisis:", e));
   const cross = await crossProductReport();
   console.log(`[fotos] Misma foto en artículos distintos (a revisar): ${cross.total}`);

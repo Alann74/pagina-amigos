@@ -75,6 +75,11 @@ export async function POST(request: Request) {
       .values({ productId: product.id, url: img.url, blobPath: base, alt: product.name, colorId, sortOrder, width: img.width, height: img.height, sourceName, driveFileId })
       .onConflictDoNothing()
       .returning();
+    // Foto subida a mano (no de Drive): queda donde la pusieron, el deploy no reordena este producto
+    if (!driveFileId) {
+      const { markManualOrder } = await import("@/lib/photo-order");
+      await markManualOrder(product.id);
+    }
     revalidateTag(TAGS.catalog, { expire: 0 });
     return Response.json({ ok: true, image: row });
   } catch (error) {

@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { colors, media, productImages, products, settings } from "@/db/schema";
 import { imageRatio, processCampaignImage, processProductImage } from "@/lib/images";
 import { isSamePhoto } from "@/lib/media";
+import { sameShotKey } from "@/lib/photo-classify";
 import matches from "../../data/photo-matches.json";
 import unmatched from "../../data/photo-unmatched.json";
 
@@ -70,15 +70,19 @@ export async function getPhotoStatus(): Promise<PhotoStatus[]> {
     .where(sql`${products.articleCode} is not null`);
   const byArticle = new Map(rows.map((r) => [r.articleCode!, r]));
   const imported = await db
-    .select({ productId: productImages.productId, driveFileId: productImages.driveFileId })
+    .select({ productId: productImages.productId, driveFileId: productImages.driveFileId, title: productImages.sourceName })
     .from(productImages)
     .where(sql`${productImages.driveFileId} is not null`);
+  // Por id de Drive y por toma (la misma foto en otra carpeta de Drive cuenta como ya importada)
   const importedBy = new Map<number, Set<string>>();
   for (const r of imported) {
     const set = importedBy.get(r.productId) ?? new Set<string>();
     set.add(r.driveFileId!);
+    if (r.title) set.add(`toma:${sameShotKey(r.title)}${/_limpia/i.test(r.title) ? ":limpia" : ""}`);
     importedBy.set(r.productId, set);
   }
+  const has = (done: Set<string>, m: DriveMatch) =>
+    done.has(m.driveId) || done.has(`toma:${sameShotKey(m.title)}:limpia`) || (!/_limpia/i.test(m.title) && done.has(`toma:${sameShotKey(m.title)}`));
   const { getExcludedDriveIds } = await import("@/lib/photo-dedupe");
   const excluded = await getExcludedDriveIds();
   const allMatches = await loadPhotoMatches();
@@ -92,7 +96,7 @@ export async function getPhotoStatus(): Promise<PhotoStatus[]> {
       productId: p?.id ?? null,
       name: p?.name ?? null,
       total: list.length,
-      imported: done ? list.filter((m) => done.has(m.driveId)).length : 0,
+      imported: done ? list.filter((m) => has(done, m)).length : 0,
       visible: p?.visible ?? false,
     };
   });
@@ -114,7 +118,7 @@ export async function importArticlePhotos(article: string, limit = 3, skip: stri
   if (!product) return { imported: 0, remaining: 0, errors: [`No hay producto con artículo ${article}`], failed: [] };
 
   const existing = await db
-    .select({ driveFileId: productImages.driveFileId, hash: media.hash })
+    .select({ driveFileId: productImages.driveFileId, title: productImages.sourceName, hash: media.hash })
     .from(productImages)
     .leftJoin(media, sql`${media.key} = ${productImages.blobPath}`)
     .where(eq(productImages.productId, product.id));
@@ -125,7 +129,12 @@ export async function importArticlePhotos(article: string, limit = 3, skip: stri
   // Repetidas que ya se sacaron: no se vuelven a importar
   const { getExcludedDriveIds } = await import("@/lib/photo-dedupe");
   const excluded = new Set((await getExcludedDriveIds())[article] ?? []);
-  const pending = list.map((m, index) => ({ ...m, index })).filter((m) => !done.has(m.driveId) && !skipped.has(m.driveId) && !excluded.has(m.driveId));
+  // La misma toma que ya tiene (otra copia en Drive, "Copia de …"): no se baja otra vez, salvo que la nueva sea la retocada
+  const shots = new Map(existing.filter((e) => e.title).map((e) => [sameShotKey(e.title!), /_limpia/i.test(e.title!)]));
+  const sameShot = (title: string) => shots.has(sameShotKey(title)) && (shots.get(sameShotKey(title)) || !/_limpia/i.test(title));
+  const pending = list
+    .map((m, index) => ({ ...m, index }))
+    .filter((m) => !done.has(m.driveId) && !skipped.has(m.driveId) && !excluded.has(m.driveId) && !sameShot(m.title));
 
   const colorNames = [...new Set(list.map((m) => m.color).filter((c): c is string => Boolean(c)))];
   const colorRows = colorNames.length ? await db.select({ id: colors.id, name: colors.name }).from(colors).where(inArray(colors.name, colorNames)) : [];
@@ -159,7 +168,8 @@ export async function importArticlePhotos(article: string, limit = 3, skip: stri
           blobPath: base,
           alt: m.color ? `${product.name} — ${m.color.toLowerCase()}` : product.name,
           colorId: m.color ? (colorId.get(m.color) ?? null) : null,
-          sortOrder: m.index,
+          // Va al final hasta que se ordena (abajo, con el resto de las fotos del producto)
+          sortOrder: 1000 + m.index,
           width: img.width,
           height: img.height,
           driveFileId: m.driveId,
@@ -175,6 +185,10 @@ export async function importArticlePhotos(article: string, limit = 3, skip: stri
   if (duplicates.length) {
     const { excludeDriveIds } = await import("@/lib/photo-dedupe");
     await excludeDriveIds(article, duplicates);
+  }
+  if (imported > 0) {
+    const { syncPhotoOrder } = await import("@/lib/photo-order");
+    await syncPhotoOrder([product.id]);
   }
   // Si ya tiene foto y precio, queda publicado (salvo que alguien lo haya ocultado a mano después)
   if (imported > 0 && existing.length === 0 && product.price > 0) {
@@ -218,32 +232,3 @@ export async function applyDrivePhoto(target: "hero" | "hero2" | "look", driveId
  * después la prenda sola. Corre una vez por cada versión del cruce, así un orden hecho a mano en el
  * admin se respeta hasta que lleguen fotos nuevas.
  */
-export async function syncPhotoOrder(): Promise<number> {
-  const allMatches = await loadPhotoMatches();
-  const version = createHash("sha256").update(JSON.stringify(allMatches)).digest("hex").slice(0, 16);
-  const done = await db.query.settings.findFirst({ where: eq(settings.key, "orden-fotos") });
-  if ((done?.value as { version?: string } | undefined)?.version === version) return 0;
-  const rows = await db
-    .select({ id: productImages.id, driveFileId: productImages.driveFileId, sortOrder: productImages.sortOrder, article: products.articleCode })
-    .from(productImages)
-    .innerJoin(products, eq(products.id, productImages.productId))
-    .where(sql`${productImages.driveFileId} is not null`);
-  const changes: [number, number][] = [];
-  for (const r of rows) {
-    const list = r.article ? allMatches[r.article] : undefined;
-    const index = list ? list.findIndex((m) => m.driveId === r.driveFileId) : -1;
-    const target = index >= 0 ? index : r.sortOrder >= 1000 ? r.sortOrder : 1000 + r.sortOrder;
-    if (target !== r.sortOrder) changes.push([r.id, target]);
-  }
-  for (let i = 0; i < changes.length; i += 300) {
-    const part = changes.slice(i, i + 300);
-    await db.execute(
-      sql`update product_images pi set sort_order = v.pos from (values ${sql.join(
-        part.map(([id, pos]) => sql`(${id}::int, ${pos}::int)`),
-        sql`, `,
-      )}) as v(id, pos) where pi.id = v.id`,
-    );
-  }
-  await db.insert(settings).values({ key: "orden-fotos", value: { version, cambios: changes.length } }).onConflictDoUpdate({ target: settings.key, set: { value: { version, cambios: changes.length } } });
-  return changes.length;
-}
