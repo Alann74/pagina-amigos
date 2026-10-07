@@ -1,0 +1,48 @@
+import { Suspense } from "react";
+import { AnnouncementBar } from "@/components/layout/announcement-bar";
+import { Footer } from "@/components/layout/footer";
+import { Header } from "@/components/layout/header";
+import { MenuDrawer } from "@/components/layout/menu-drawer";
+import { SearchOverlay } from "@/components/layout/search-overlay";
+import { WhatsAppFloat } from "@/components/layout/whatsapp-float";
+import { CartDrawer } from "@/components/cart/cart-drawer";
+import { ShopProviders } from "@/components/providers";
+import { ShopConfigProvider } from "@/components/shop-config";
+import { getCategories, getSettings } from "@/lib/catalog";
+import { SITE_URL } from "@/lib/site";
+import { whatsappUrl } from "@/lib/whatsapp";
+
+export default async function ShopLayout({ children }: LayoutProps<"/">) {
+  const [settings, categories] = await Promise.all([getSettings(), getCategories()]);
+  const menuCategories = categories.filter((c) => c.productCount > 0).map((c) => ({ slug: c.slug, name: c.name }));
+  const config = {
+    whatsappNumber: settings.whatsappNumber,
+    cashDiscountPercent: settings.promo.cashDiscountPercent,
+    installments: settings.promo.installments,
+    freeShippingThreshold: settings.freeShippingThreshold,
+    storeAddressShort: settings.address.split(",")[0] ?? settings.address,
+    siteUrl: SITE_URL,
+  };
+  return (
+    <ShopConfigProvider value={config}>
+      <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:bg-paper focus:px-4 focus:py-2">
+        Saltar al contenido
+      </a>
+      <AnnouncementBar />
+      <Header />
+      <main id="contenido" className="min-h-[60vh]">
+        {children}
+      </main>
+      <Footer />
+      <Suspense>
+        <ShopProviders />
+      </Suspense>
+      <MenuDrawer categories={menuCategories} whatsappHref={whatsappUrl(settings.whatsappNumber, "Hola INEDITA! Tengo una consulta.")} instagram={settings.instagram} />
+      <SearchOverlay />
+      <CartDrawer />
+      <Suspense>
+        <WhatsAppFloat />
+      </Suspense>
+    </ShopConfigProvider>
+  );
+}
