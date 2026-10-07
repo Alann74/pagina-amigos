@@ -8,7 +8,7 @@ import { settings } from "../src/db/schema";
 import { listPublicFolder } from "../src/lib/drive-folder";
 import { liveCheck } from "../src/lib/live-check";
 import { checkAllProductPhotos } from "../src/lib/photo-check";
-import { backfillHashes, duplicateReport } from "../src/lib/photo-dedupe";
+import { backfillHashes, crossProductReport, removeDuplicatePhotos } from "../src/lib/photo-dedupe";
 
 const BUDGET = Number(process.env.PHOTO_IMPORT_BUDGET_MS ?? 14 * 60_000);
 
@@ -34,8 +34,10 @@ async function main() {
   }
   console.log(`[fotos] Orden: ${await syncPhotoOrder()} fotos reordenadas`);
   console.log(`[fotos] Huellas calculadas: ${await backfillHashes()}`);
-  const dup = await duplicateReport();
-  console.log(`[fotos] Posibles repetidas: ${dup.mismoProducto.length} pares en el mismo producto, ${dup.otrosProductos.length} entre productos distintos`);
+  const removed = await removeDuplicatePhotos();
+  console.log(`[fotos] Repetidas quitadas: ${removed.length}`);
+  const cross = await crossProductReport();
+  console.log(`[fotos] Misma foto en artículos distintos (a revisar): ${cross.total}`);
   // Prueba: ¿se puede listar una carpeta pública de Drive desde el servidor? (para encontrar fotos nuevas solas)
   const sondeo: Record<string, unknown> = { fecha: new Date().toISOString() };
   for (const [nombre, id] of [["CAPSULAS FOTOS SOLAS", "1DAWlthDwVh0aKYfG8S2TitWdGhDPHdhI"], ["TODAS", "11Fhw_weCSbFMdp8dHj67DlkcpYR3NPJg"]]) {

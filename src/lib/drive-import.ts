@@ -65,7 +65,11 @@ export async function getPhotoStatus(): Promise<PhotoStatus[]> {
     set.add(r.driveFileId!);
     importedBy.set(r.productId, set);
   }
-  return Object.entries(PHOTO_MATCHES).map(([article, list]) => {
+  const { getExcludedDriveIds } = await import("@/lib/photo-dedupe");
+  const excluded = await getExcludedDriveIds();
+  return Object.entries(PHOTO_MATCHES).map(([article, all]) => {
+    const skip = new Set(excluded[article] ?? []);
+    const list = all.filter((m) => !skip.has(m.driveId));
     const p = byArticle.get(article);
     const done = p ? importedBy.get(p.id) : undefined;
     return {
@@ -98,7 +102,10 @@ export async function importArticlePhotos(article: string, limit = 3, skip: stri
   const done = new Set(existing.map((e) => e.driveFileId).filter(Boolean));
   // "skip": las que ya fallaron en esta pasada, para que una foto con problemas no frene a las demás
   const skipped = new Set(skip);
-  const pending = list.map((m, index) => ({ ...m, index })).filter((m) => !done.has(m.driveId) && !skipped.has(m.driveId));
+  // Repetidas que ya se sacaron: no se vuelven a importar
+  const { getExcludedDriveIds } = await import("@/lib/photo-dedupe");
+  const excluded = new Set((await getExcludedDriveIds())[article] ?? []);
+  const pending = list.map((m, index) => ({ ...m, index })).filter((m) => !done.has(m.driveId) && !skipped.has(m.driveId) && !excluded.has(m.driveId));
 
   const colorNames = [...new Set(list.map((m) => m.color).filter((c): c is string => Boolean(c)))];
   const colorRows = colorNames.length ? await db.select({ id: colors.id, name: colors.name }).from(colors).where(inArray(colors.name, colorNames)) : [];
