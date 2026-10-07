@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "tsx scripts/migrate.ts --skip-if-missing && tsx scripts/seed.ts --if-empty && next build",
+    "vercel-build": "tsx scripts/migrate.ts --skip-if-missing && tsx scripts/seed.ts --if-empty && tsx scripts/descriptions.ts --skip-if-missing && tsx scripts/photos.ts && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

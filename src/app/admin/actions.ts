@@ -599,3 +599,17 @@ export async function refreshStore(): Promise<ActionResult> {
     return fail(e);
   }
 }
+
+/** Revisa desde el servidor que existan todas las fotos del catálogo (los 3 tamaños WebP y el JPG). */
+export async function runPhotoCheck(): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const { checkAllProductPhotos } = await import("@/lib/photo-check");
+    const r = await checkAllProductPhotos();
+    return r.rotas.length
+      ? { ok: false, error: `${r.rotas.length} archivos de fotos con problemas (de ${r.archivos}). Detalle abajo.` }
+      : { ok: true, message: `Todo bien: ${r.fotos} fotos de ${r.productosPublicados} productos, ${r.archivos} archivos revisados${r.productosSinFoto.length ? ` · ${r.productosSinFoto.length} productos sin foto` : ""}` };
+  } catch (e) {
+    return fail(e);
+  }
+}

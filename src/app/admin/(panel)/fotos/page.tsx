@@ -3,9 +3,10 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { BulkUploader, type PlanEntry } from "@/components/admin/bulk-uploader";
 import { DriveImporter } from "@/components/admin/drive-importer";
+import { PhotoCheckPanel } from "@/components/admin/photo-check";
 import { RefreshStoreButton } from "@/components/admin/refresh-store-button";
 import { AdminLoading, AdminTitle, Section } from "@/components/admin/ui";
-import { adminGate, getAdminProducts } from "@/lib/admin-data";
+import { adminGate, getAdminProducts, getPhotoDiagnostics } from "@/lib/admin-data";
 import { getImportedDriveIds, getLookCandidates, getPhotoStatus, PHOTO_MATCHES, PHOTO_UNMATCHED } from "@/lib/drive-import";
 
 export const metadata: Metadata = { title: "Fotos" };
@@ -25,12 +26,13 @@ export default function PhotosPage() {
 
 async function Photos() {
   await adminGate();
-  const [status, products, importedDriveIds] = await Promise.all([getPhotoStatus(), getAdminProducts(), getImportedDriveIds()]);
+  const [status, products, importedDriveIds, diagnostics] = await Promise.all([getPhotoStatus(), getAdminProducts(), getImportedDriveIds(), getPhotoDiagnostics()]);
   const plan: PlanEntry[] = Object.entries(PHOTO_MATCHES).flatMap(([article, list]) => list.map((m, index): PlanEntry => [m.title.toLowerCase(), article, index, m.driveId, m.color ?? "", m.kind]));
   const withoutPhoto = products.filter((p) => p.imageCount === 0);
   const unmatched = Object.entries(PHOTO_UNMATCHED.codes);
   return (
     <>
+      <PhotoCheckPanel last={diagnostics.last} reports={diagnostics.reports} />
       <DriveImporter status={status} looks={getLookCandidates()} />
       <BulkUploader plan={plan} products={products.map((p) => ({ id: p.id, articleCode: p.articleCode }))} importedDriveIds={importedDriveIds} />
 

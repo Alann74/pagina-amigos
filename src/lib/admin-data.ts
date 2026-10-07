@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, lte, ne, sql, type SQL } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { categories, colors, orderItems, orders, productImages, products, subscribers, variants, withdrawalRequests } from "@/db/schema";
+import { categories, colors, orderItems, orders, productImages, products, settings, subscribers, variants, withdrawalRequests } from "@/db/schema";
 import { isAdmin } from "@/lib/admin-guard";
 
 // Lecturas del panel: siempre en vivo (sin caché) y solo con sesión de admin.
@@ -304,4 +304,30 @@ export async function getSubscribers() {
     .orderBy(desc(subscribers.createdAt))
     .limit(5000);
   return rows.map((r) => ({ ...r, usedAt: r.usedAt?.toISOString() ?? null, createdAt: r.createdAt.toISOString() }));
+}
+
+// ---------------------------------------------------------------- revisión de fotos
+
+export async function getPhotoDiagnostics() {
+  const rows = await db
+    .select({ key: settings.key, value: settings.value, updatedAt: settings.updatedAt })
+    .from(settings)
+    .where(sql`${settings.key} = 'diagnostico-fotos' or ${settings.key} like 'diagnostico-equipo:%'`)
+    .orderBy(desc(settings.updatedAt))
+    .limit(30);
+  const last = (rows.find((r) => r.key === "diagnostico-fotos")?.value ?? null) as import("@/lib/photo-check").PhotoCheck | null;
+  const reports = rows
+    .filter((r) => r.key.startsWith("diagnostico-equipo:"))
+    .slice(0, 15)
+    .map((r) => {
+      const v = r.value as { navegador?: string; pantalla?: string; pruebas?: { nombre: string; ok: boolean; detalle?: string }[] };
+      return {
+        key: r.key,
+        fecha: r.updatedAt.toISOString(),
+        navegador: v.navegador ?? "",
+        pantalla: v.pantalla ?? "",
+        fallas: (v.pruebas ?? []).filter((p) => !p.ok).map((p) => p.nombre),
+      };
+    });
+  return { last, reports };
 }

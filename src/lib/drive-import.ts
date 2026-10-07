@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { colors, productImages, products, settings } from "@/db/schema";
@@ -166,4 +167,37 @@ export async function applyDrivePhoto(target: "hero" | "hero2" | "look", driveId
     await db.insert(settings).values({ key: "site", value }).onConflictDoUpdate({ target: settings.key, set: { value } });
   }
   return img.url;
+}
+
+/**
+ * Ordena las fotos importadas de Drive según el cruce (data/photo-matches.json): primero la modelo,
+ * después la prenda sola. Corre una vez por cada versión del cruce, así un orden hecho a mano en el
+ * admin se respeta hasta que lleguen fotos nuevas.
+ */
+export async function syncPhotoOrder(): Promise<number> {
+  const version = createHash("sha256").update(JSON.stringify(PHOTO_MATCHES)).digest("hex").slice(0, 16);
+  const done = await db.query.settings.findFirst({ where: eq(settings.key, "orden-fotos") });
+  if ((done?.value as { version?: string } | undefined)?.version === version) return 0;
+  const rows = await db
+    .select({ id: productImages.id, driveFileId: productImages.driveFileId, sortOrder: productImages.sortOrder, article: products.articleCode })
+    .from(productImages)
+    .innerJoin(products, eq(products.id, productImages.productId))
+    .where(sql`${productImages.driveFileId} is not null`);
+  const changes: [number, number][] = [];
+  for (const r of rows) {
+    const list = r.article ? PHOTO_MATCHES[r.article] : undefined;
+    const index = list ? list.findIndex((m) => m.driveId === r.driveFileId) : -1;
+    if (index >= 0 && index !== r.sortOrder) changes.push([r.id, index]);
+  }
+  for (let i = 0; i < changes.length; i += 300) {
+    const part = changes.slice(i, i + 300);
+    await db.execute(
+      sql`update product_images pi set sort_order = v.pos from (values ${sql.join(
+        part.map(([id, pos]) => sql`(${id}::int, ${pos}::int)`),
+        sql`, `,
+      )}) as v(id, pos) where pi.id = v.id`,
+    );
+  }
+  await db.insert(settings).values({ key: "orden-fotos", value: { version, cambios: changes.length } }).onConflictDoUpdate({ target: settings.key, set: { value: { version, cambios: changes.length } } });
+  return changes.length;
 }
