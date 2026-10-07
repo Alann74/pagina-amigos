@@ -79,6 +79,11 @@ export async function getPhotoStatus(): Promise<PhotoStatus[]> {
   });
 }
 
+/** Prenda sola (catálogo): entera sobre blanco. Foto con modelo de proporción parecida a 3:4: recorte desde arriba (sin cortar cabezas). */
+export function fitFor(kind: DriveMatch["kind"], ratio: number | null): "cover" | "contain" {
+  return kind !== "catalogo" && ratio !== null && ratio >= 1.2 && ratio <= 1.55 ? "cover" : "contain";
+}
+
 /**
  * Importa hasta `limit` fotos pendientes de un artículo. Es idempotente: si se corta, se vuelve a correr
  * y sigue donde quedó (no duplica). El orden final respeta el del cruce (principal, hover, resto).
@@ -107,8 +112,7 @@ export async function importArticlePhotos(article: string, limit = 3, skip: stri
       const buffer = await downloadDriveFile(m.driveId);
       // Las de catálogo (prenda sola, PNG recortada) van enteras sobre blanco; las de campaña se recortan a 3:4
       // desde arriba si la proporción es parecida (no se cortan cabezas).
-      const ratio = await imageRatio(buffer);
-      const fit = m.kind !== "catalogo" && ratio !== null && ratio >= 1.2 && ratio <= 1.55 ? "cover" : "contain";
+      const fit = fitFor(m.kind, await imageRatio(buffer));
       const base = `p/${article}-${m.driveId.slice(0, 12)}`;
       const img = await processProductImage(buffer, base, { fit });
       await db

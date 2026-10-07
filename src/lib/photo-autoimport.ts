@@ -1,9 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { settings } from "@/db/schema";
-import { applyDrivePhoto, downloadDriveFile, getLookCandidates, getPhotoStatus, importArticlePhotos, PHOTO_MATCHES } from "@/lib/drive-import";
-import { processProductImage } from "@/lib/images";
+import { productImages, products, settings } from "@/db/schema";
+import { applyDrivePhoto, downloadDriveFile, fitFor, getLookCandidates, getPhotoStatus, importArticlePhotos, PHOTO_MATCHES } from "@/lib/drive-import";
+import { imageRatio, processCampaignImage, processProductImage } from "@/lib/images";
+import { MEDIA_PREFIX } from "@/lib/media";
 
 // Importación de todas las fotos de Drive sin tener que dejar el admin abierto: corre en segundo plano
 // en tandas de ~4 minutos y se vuelve a llamar sola hasta terminar. Se dispara con MAINTENANCE_TOKEN.
@@ -106,4 +107,78 @@ export async function testOnePhoto() {
   } catch (e) {
     return { ok: false, paso: "procesar/subir a Blob", archivo: first.title, bytes: buffer.length, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+// ------------------------------------------------------------------ paso de Vercel Blob a la base
+
+const ALL_DRIVE_IDS = () => [...new Set(Object.values(PHOTO_MATCHES).flatMap((l) => l.map((m) => m.driveId)))];
+
+/**
+ * Las fotos que estaban en Vercel Blob (suspendido en el plan gratis) se vuelven a procesar desde el original
+ * de Drive y se guardan en la base. Idempotente: si se corta, sigue con las que falten.
+ */
+export async function migrateImagesToDb(budgetMs: number, concurrency = 6) {
+  const started = Date.now();
+  const rows = await db
+    .select({ id: productImages.id, driveFileId: productImages.driveFileId, article: products.articleCode })
+    .from(productImages)
+    .innerJoin(products, eq(products.id, productImages.productId))
+    .where(sql`${productImages.url} not like ${MEDIA_PREFIX + "%"} and ${productImages.driveFileId} is not null`);
+  const queue = [...rows];
+  const errors: string[] = [];
+  let moved = 0;
+  const worker = async () => {
+    while (queue.length && Date.now() - started < budgetMs) {
+      const r = queue.shift()!;
+      try {
+        const buffer = await downloadDriveFile(r.driveFileId!);
+        const kind = (r.article ? PHOTO_MATCHES[r.article]?.find((m) => m.driveId === r.driveFileId)?.kind : undefined) ?? "catalogo";
+        const base = `p/${r.article ?? "x"}-${r.driveFileId!.slice(0, 12)}`;
+        const img = await processProductImage(buffer, base, { fit: fitFor(kind, await imageRatio(buffer)) });
+        await db.update(productImages).set({ url: img.url, blobPath: base, width: img.width, height: img.height }).where(eq(productImages.id, r.id));
+        moved++;
+      } catch (e) {
+        errors.push(`${r.article} ${r.driveFileId}: ${e instanceof Error ? e.message : "error"}`);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return { moved, errors, pending: queue.length };
+}
+
+/** Portada y "Comprá el look": si apuntan a Vercel Blob, se regeneran desde Drive en la base. */
+export async function migrateCampaignToDb() {
+  const ids = ALL_DRIVE_IDS();
+  const moved: string[] = [];
+  const convert = async (url: unknown): Promise<string | null> => {
+    if (typeof url !== "string" || url.startsWith(MEDIA_PREFIX)) return null;
+    const m = url.match(/\/c\/([a-z0-9]+)-([\w-]{12})-(?:w\d+\.webp|share\.jpg)$/i);
+    if (!m) return null;
+    const driveId = ids.find((id) => id.startsWith(m[2]));
+    if (!driveId) return null;
+    const img = await processCampaignImage(await downloadDriveFile(driveId), `c/${m[1]}-${m[2]}`);
+    moved.push(img.url);
+    return img.url;
+  };
+  const site = await db.query.settings.findFirst({ where: eq(settings.key, "site") });
+  if (site) {
+    const value = site.value as { hero?: Record<string, unknown> };
+    const hero = { ...(value.hero ?? {}) };
+    let changed = false;
+    for (const k of ["imageUrl", "secondaryImageUrl", "mobileImageUrl"]) {
+      const next = await convert(hero[k]).catch(() => null);
+      if (next) {
+        hero[k] = next;
+        changed = true;
+      }
+    }
+    if (changed) await db.update(settings).set({ value: { ...value, hero } }).where(eq(settings.key, "site"));
+  }
+  const look = await db.query.settings.findFirst({ where: eq(settings.key, "look") });
+  if (look) {
+    const value = look.value as { imageUrl?: unknown };
+    const next = await convert(value.imageUrl).catch(() => null);
+    if (next) await db.update(settings).set({ value: { ...value, imageUrl: next } }).where(eq(settings.key, "look"));
+  }
+  return moved;
 }

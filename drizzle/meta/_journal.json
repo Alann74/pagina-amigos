@@ -15,6 +15,13 @@
       "when": 1791388353884,
       "tag": "0001_mayoristas_y_bienvenida",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791407083746,
+      "tag": "0002_fotos_en_la_base",
+      "breakpoints": true
     }
   ]
 }

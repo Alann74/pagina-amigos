@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { MEDIA_PREFIX, saveMedia, blobStorageSelected } from "@/lib/media";
 import { putFile } from "@/lib/storage";
 
 export const PRODUCT_WIDTHS = [400, 800, 1200] as const;
@@ -29,6 +30,13 @@ export async function processProductImage(input: Buffer, basePath: string, opts:
     .raw()
     .toBuffer({ resolveWithObject: true });
   const base = () => sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } });
+  if (!blobStorageSelected()) {
+    // En la base se guarda solo la versión de 1200 (los demás tamaños se generan al pedirlos)
+    const master = await base().webp({ quality: 82, effort: 4 }).toBuffer();
+    await saveMedia(basePath, master, "image/webp", info.width, info.height);
+    const url = `${MEDIA_PREFIX}${basePath}-w1200.webp`;
+    return { url, width: info.width, height: info.height, urls: [url] };
+  }
   const outputs = await Promise.all(
     PRODUCT_WIDTHS.map(async (width) => {
       const pipeline = width === 1200 ? base() : base().resize(width, Math.round((width * 4) / 3));
@@ -47,6 +55,17 @@ export async function processProductImage(input: Buffer, basePath: string, opts:
 export async function processCampaignImage(input: Buffer, basePath: string): Promise<ProcessedImage> {
   const meta = await sharp(input, { failOn: "none" }).rotate().metadata();
   const ratio = meta.width && meta.height ? meta.height / meta.width : 1.25;
+  if (!blobStorageSelected()) {
+    const { data, info } = await sharp(input, { failOn: "none" })
+      .rotate()
+      .flatten({ background: "#ffffff" })
+      .resize({ width: 2400, withoutEnlargement: true })
+      .webp({ quality: 80, effort: 4 })
+      .toBuffer({ resolveWithObject: true });
+    await saveMedia(basePath, data, "image/webp", info.width, info.height);
+    const url = `${MEDIA_PREFIX}${basePath}-w1600.webp`;
+    return { url, width: 1600, height: Math.round(1600 * ratio), urls: [url] };
+  }
   const urls: string[] = [];
   let mainUrl = "";
   for (const width of CAMPAIGN_WIDTHS) {
@@ -68,6 +87,8 @@ export async function processCampaignImage(input: Buffer, basePath: string): Pro
 
 /** Versión JPG 1200×1500 para Open Graph / feed de Meta (no aceptan bien WebP en todos lados). */
 export async function processShareImage(input: Buffer, basePath: string, fit: "contain" | "cover" = "contain"): Promise<string> {
+  // Con las fotos en la base, el JPG para compartir se genera al pedirlo (/m/<clave>-share.jpg)
+  if (!blobStorageSelected()) return `${MEDIA_PREFIX}${basePath}-share.jpg`;
   const out = await sharp(input, { failOn: "none" })
     .rotate()
     .flatten({ background: "#ffffff" })

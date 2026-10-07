@@ -29,6 +29,12 @@ export async function putFile(pathname: string, body: Buffer, contentType: strin
 
 export async function deleteFiles(urls: string[]): Promise<void> {
   if (urls.length === 0) return;
+  // Fotos guardadas en la base
+  const { deleteMedia, mediaKeyFromUrl } = await import("@/lib/media");
+  const keys = [...new Set(urls.map(mediaKeyFromUrl).filter((k): k is string => Boolean(k)))];
+  await deleteMedia(keys);
+  urls = urls.filter((u) => !mediaKeyFromUrl(u));
+  if (urls.length === 0) return;
   if (blobEnabled()) {
     const { del } = await import("@vercel/blob");
     await del(urls.filter((u) => u.startsWith("http")));

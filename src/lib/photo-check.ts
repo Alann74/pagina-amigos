@@ -1,6 +1,7 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { productImages, products, settings } from "@/db/schema";
+import { media, productImages, products, settings } from "@/db/schema";
+import { mediaKeyFromUrl } from "@/lib/media";
 import { SITE_URL } from "@/lib/site";
 
 // Revisión de todas las fotos del catálogo desde el servidor: cada foto tiene que existir en sus
@@ -53,8 +54,17 @@ export async function checkAllProductPhotos(): Promise<PhotoCheck> {
     .from(products)
     .where(sql`${products.visible} and ${products.price} > 0 and exists (select 1 from product_images pi where pi.product_id = ${products.id})`);
 
-  const jobs = rows.flatMap((r) => variants(r.url).map((url) => ({ ...r, url })));
+  // Fotos guardadas en la base: alcanza con que exista la versión grande (los tamaños se generan al pedirlos)
   const rotas: PhotoCheck["rotas"] = [];
+  const enBase = rows.filter((r) => mediaKeyFromUrl(r.url));
+  const keys = [...new Set(enBase.map((r) => mediaKeyFromUrl(r.url)!))];
+  const existentes = new Set<string>();
+  for (let k = 0; k < keys.length; k += 500) {
+    const part = await db.select({ key: media.key }).from(media).where(inArray(media.key, keys.slice(k, k + 500)));
+    for (const p of part) existentes.add(p.key);
+  }
+  for (const r of enBase) if (!existentes.has(mediaKeyFromUrl(r.url)!)) rotas.push({ article: r.article, name: r.name, url: r.url, estado: "falta en la base" });
+  const jobs = rows.filter((r) => !mediaKeyFromUrl(r.url)).flatMap((r) => variants(r.url).map((url) => ({ ...r, url })));
   let i = 0;
   await Promise.all(
     Array.from({ length: 24 }, async () => {
@@ -70,7 +80,7 @@ export async function checkAllProductPhotos(): Promise<PhotoCheck> {
     productosPublicados: publicados,
     productosSinFoto: sinFoto,
     fotos: rows.length,
-    archivos: jobs.length,
+    archivos: jobs.length + enBase.length,
     rotas: rotas.slice(0, 200),
     segundos: Math.round((Date.now() - t0) / 1000),
   };

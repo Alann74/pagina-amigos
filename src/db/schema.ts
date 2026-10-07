@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -222,6 +223,20 @@ export const subscribers = pgTable(
   },
   (t) => [index("subscribers_phone_idx").on(t.phoneKey), index("subscribers_created_idx").on(t.createdAt)],
 );
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+
+// Fotos guardadas en la base (reemplaza a Vercel Blob, que en el plan gratis se suspende al pasar el límite).
+// Se guarda una sola versión grande (WebP); los demás tamaños y el JPG se generan al pedirlos y quedan en la caché.
+export const media = pgTable("media", {
+  key: text("key").primaryKey(), // ej. "p/39603-1a2b3c4d5e6f" o "c/hero-1a2b3c4d5e6f"
+  contentType: text("content_type").notNull(),
+  data: bytea("data").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  bytes: integer("bytes").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export type Category = typeof categories.$inferSelect;
 export type Color = typeof colors.$inferSelect;
