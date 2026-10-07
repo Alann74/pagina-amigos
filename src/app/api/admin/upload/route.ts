@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidateTag } from "next/cache";
 import { db } from "@/db";
-import { productImages, products } from "@/db/schema";
+import { colors, productImages, products } from "@/db/schema";
 import { isAdmin } from "@/lib/admin-guard";
 import { TAGS } from "@/lib/catalog";
 import { slugify } from "@/lib/format";
-import { processCampaignImage, processProductImage } from "@/lib/images";
+import { imageRatio, processCampaignImage, processProductImage } from "@/lib/images";
 
 export const maxDuration = 60;
 
@@ -36,17 +36,44 @@ export async function POST(request: Request) {
     const productId = Number(form.get("productId"));
     const product = Number.isInteger(productId) ? await db.query.products.findFirst({ where: eq(products.id, productId) }) : null;
     if (!product) return Response.json({ error: "Producto inexistente" }, { status: 404 });
+
+    // Subida masiva (fotos de Drive bajadas a la compu): se identifica cada foto para no duplicarla
+    const driveFileId = form.get("driveFileId") ? String(form.get("driveFileId")).slice(0, 100) : null;
+    if (driveFileId) {
+      const dup = await db.query.productImages.findFirst({ where: and(eq(productImages.productId, product.id), eq(productImages.driveFileId, driveFileId)) });
+      if (dup) return Response.json({ ok: true, skipped: true, image: dup });
+    } else if (form.get("dedupe") === "1" && sourceName) {
+      const dup = await db.query.productImages.findFirst({ where: and(eq(productImages.productId, product.id), eq(productImages.sourceName, sourceName)) });
+      if (dup) return Response.json({ ok: true, skipped: true, image: dup });
+    }
+
+    let colorId: number | null = null;
     const colorIdRaw = form.get("colorId");
-    const colorId = colorIdRaw && /^\d+$/.test(String(colorIdRaw)) ? Number(colorIdRaw) : null;
-    const base = `p/${product.articleCode ?? `id${product.id}`}-${stamp}`;
-    const img = await processProductImage(buffer, base);
-    const [{ next }] = await db
-      .select({ next: sql<number>`coalesce(max(${productImages.sortOrder}) + 1, 0)`.mapWith(Number) })
-      .from(productImages)
-      .where(eq(productImages.productId, product.id));
+    if (colorIdRaw && /^\d+$/.test(String(colorIdRaw))) colorId = Number(colorIdRaw);
+    const colorName = form.get("colorName") ? String(form.get("colorName")).toUpperCase() : null;
+    if (!colorId && colorName) colorId = (await db.query.colors.findFirst({ where: eq(colors.name, colorName) }))?.id ?? null;
+
+    // Fotos de campaña con proporción parecida a 3:4 se recortan desde arriba; las de catálogo van enteras
+    const photoKind = form.get("photoKind") ? String(form.get("photoKind")) : "catalogo";
+    const ratio = photoKind !== "catalogo" ? await imageRatio(buffer) : null;
+    const fit = ratio !== null && ratio >= 1.2 && ratio <= 1.55 ? "cover" : "contain";
+
+    const base = driveFileId ? `p/${product.articleCode ?? `id${product.id}`}-${driveFileId.slice(0, 12)}` : `p/${product.articleCode ?? `id${product.id}`}-${stamp}`;
+    const img = await processProductImage(buffer, base, { fit });
+    const sortRaw = form.get("sortOrder");
+    const sortOrder =
+      sortRaw && /^\d+$/.test(String(sortRaw))
+        ? Number(sortRaw)
+        : (
+            await db
+              .select({ next: sql<number>`coalesce(max(${productImages.sortOrder}) + 1, 0)`.mapWith(Number) })
+              .from(productImages)
+              .where(eq(productImages.productId, product.id))
+          )[0].next;
     const [row] = await db
       .insert(productImages)
-      .values({ productId: product.id, url: img.url, blobPath: base, alt: product.name, colorId, sortOrder: next, width: img.width, height: img.height, sourceName })
+      .values({ productId: product.id, url: img.url, blobPath: base, alt: product.name, colorId, sortOrder, width: img.width, height: img.height, sourceName, driveFileId })
+      .onConflictDoNothing()
       .returning();
     revalidateTag(TAGS.catalog, { expire: 0 });
     return Response.json({ ok: true, image: row });

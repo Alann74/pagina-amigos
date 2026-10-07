@@ -40,6 +40,11 @@ export async function downloadDriveFile(id: string): Promise<Buffer> {
   throw new Error(lastError || "No se pudo descargar de Drive");
 }
 
+export async function getImportedDriveIds(): Promise<string[]> {
+  const rows = await db.select({ id: productImages.driveFileId }).from(productImages).where(sql`${productImages.driveFileId} is not null`);
+  return rows.map((r) => r.id!);
+}
+
 export type PhotoStatus = { article: string; productId: number | null; name: string | null; total: number; imported: number; visible: boolean };
 
 /** Estado de la importación por artículo (para la pantalla de fotos del admin). */
