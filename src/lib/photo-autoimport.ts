@@ -31,7 +31,12 @@ export async function photoProgress() {
 export async function importPendingPhotos(budgetMs: number, concurrency = 3) {
   const started = Date.now();
   const status = await getPhotoStatus();
-  const queue = status.filter((s) => s.productId && s.imported < s.total).map((s) => s.article);
+  // Orden al azar: si hay varias tandas corriendo a la vez, no procesan los mismos artículos
+  const queue = status
+    .filter((s) => s.productId && s.imported < s.total)
+    .map((s) => ({ article: s.article, key: Math.random() }))
+    .sort((x, y) => x.key - y.key)
+    .map((x) => x.article);
   const failedBy = new Map<string, string[]>();
   const errors: string[] = [];
   let imported = 0;
