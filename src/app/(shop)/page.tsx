@@ -9,14 +9,22 @@ import { getBestSellerIds, getCatalog, getCategories, getLookSettings, getProduc
 import { toEntry } from "@/lib/catalog-entry";
 import { stablePick } from "@/lib/complements";
 import { toClientProduct } from "@/lib/product-client";
-import { DEFAULT_DESCRIPTION } from "@/lib/site";
+import { shareImageUrl } from "@/lib/share-image";
+import { absoluteUrl, DEFAULT_DESCRIPTION } from "@/lib/site";
 import { whatsappUrl } from "@/lib/whatsapp";
 
-export const metadata: Metadata = {
-  title: { absolute: "INEDITA · Ropa de mujer en Rosario" },
-  description: DEFAULT_DESCRIPTION,
-  alternates: { canonical: "/" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const [settings, catalog] = await Promise.all([getSettings(), getCatalog()]);
+  // Para compartir el link de la home (WhatsApp, Instagram): la foto de portada o la de un producto nuevo
+  const cover = settings.hero.imageUrl ?? catalog.find((p) => p.images.length)?.images[0]?.url;
+  const image = cover ? absoluteUrl(shareImageUrl(cover)) : undefined;
+  return {
+    title: { absolute: "INEDITA · Ropa de mujer · Mitre 830, Rosario" },
+    description: DEFAULT_DESCRIPTION,
+    alternates: { canonical: "/" },
+    openGraph: { title: "INEDITA", description: DEFAULT_DESCRIPTION, url: absoluteUrl("/"), images: image ? [{ url: image }] : undefined },
+  };
+}
 
 export default async function HomePage() {
   const [settings, catalog, categories, look, bestIds] = await Promise.all([

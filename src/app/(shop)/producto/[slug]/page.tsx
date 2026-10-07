@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: PageProps<"/producto/[slug]">
   const product = await getProductBySlug(slug);
   if (!product) return { title: "Producto no encontrado", robots: { index: false } };
   const settings = await getSettings();
-  const description = `${product.name}${product.colors.length ? ` en ${product.colors.map(displayColor).join(", ").toLowerCase()}` : ""}. ${formatPrice(product.price)} o ${formatPrice(cashPrice(product.price, settings.promo.cashDiscountPercent))} con ${settings.promo.cashDiscountPercent}% OFF en efectivo/transferencia. Pedilo por WhatsApp en INEDITA Rosario.`;
+  const description = `${product.name}${product.colors.length ? ` en ${product.colors.map(displayColor).join(", ").toLowerCase()}` : ""}. ${formatPrice(product.price)} o ${formatPrice(cashPrice(product.price, settings.promo.cashDiscountPercent))} con ${settings.promo.cashDiscountPercent}% OFF en efectivo/transferencia. Pedilo por WhatsApp a INEDITA (Mitre 830, Rosario).`;
   const image = product.images[0] ? shareImageUrl(product.images[0].url) : undefined;
   return {
     title: product.name,

@@ -55,6 +55,9 @@ export async function processCampaignImage(input: Buffer, basePath: string): Pro
     urls.push(url);
     if (width === 1600) mainUrl = url;
   }
+  // JPG para compartir (Open Graph): mismo encuadre, 1200 de ancho
+  const share = await sharp(input, { failOn: "none" }).rotate().flatten({ background: "#ffffff" }).resize({ width: 1200 }).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+  urls.push(await putFile(`${basePath}-share.jpg`, share, "image/jpeg"));
   return { url: mainUrl, width: 1600, height: Math.round(1600 * ratio), urls };
 }
 

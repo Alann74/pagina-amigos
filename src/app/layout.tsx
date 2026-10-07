@@ -14,7 +14,7 @@ const interTight = Inter_Tight({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: `${BRAND} · Rosario`, template: `%s · ${BRAND}` },
+  title: { default: `${BRAND} — Ropa de mujer`, template: `%s · ${BRAND}` },
   description: DEFAULT_DESCRIPTION,
   applicationName: BRAND,
   openGraph: { type: "website", locale: "es_AR", siteName: BRAND },

@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: PageProps<"/categoria/[slug]"
   if (!category) return { title: "Categoría no encontrada" };
   return {
     title: category.name,
-    description: `${category.name} de mujer en INEDITA Rosario. Elegí tu talle y pedí por WhatsApp con 10% OFF en efectivo o transferencia.`,
+    description: `${category.name} de mujer en INEDITA. Local en Mitre 830, Rosario. Elegí tu talle y pedí por WhatsApp con 10% OFF en efectivo o transferencia.`,
     alternates: { canonical: `/categoria/${category.slug}` },
   };
 }
