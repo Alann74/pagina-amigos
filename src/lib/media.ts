@@ -20,8 +20,9 @@ export async function saveMedia(key: string, data: Buffer, contentType: string, 
 }
 
 /**
- * Huella de la foto: "forma|color". Forma = dHash 16x16 (256 bits en hex); color = grilla 4x4 de colores
- * promedio (48 bytes en hex). La misma prenda en otro color tiene la misma forma pero distinto color.
+ * Huella de la foto, "v2:forma|miniatura". Forma = dHash 16x16 (256 bits en hex). Miniatura = 16x24 en color
+ * (RGB). Dos fotos son la misma si la forma es casi igual y la miniatura casi idéntica sobre la prenda
+ * (sin contar el fondo blanco): así no se confunden la prenda en otro color ni el frente con la espalda.
  */
 export async function imageHash(data: Buffer): Promise<string> {
   const base = sharp(data, { failOn: "none" }).flatten({ background: "#ffffff" });
@@ -34,14 +35,16 @@ export async function imageHash(data: Buffer): Promise<string> {
       shape += nibble.toString(16);
     }
   }
-  const { data: rgb } = await base.clone().removeAlpha().resize(4, 4, { fit: "fill" }).raw().toBuffer({ resolveWithObject: true });
-  return `${shape}|${Buffer.from(rgb).toString("hex")}`;
+  const { data: rgb } = await base.clone().removeAlpha().resize(16, 24, { fit: "fill" }).raw().toBuffer({ resolveWithObject: true });
+  return `v2:${shape}|${Buffer.from(rgb).toString("hex")}`;
 }
 
-/** Bits distintos entre las formas (0 = idénticas; < ~12 = la misma toma). */
+const parts = (h: string) => h.replace(/^v2:/, "").split("|");
+
+/** Bits distintos entre las formas (0 = idénticas). */
 export function hashDistance(a: string, b: string): number {
-  const x = a.split("|")[0];
-  const y = b.split("|")[0];
+  const x = parts(a)[0];
+  const y = parts(b)[0];
   let d = 0;
   for (let i = 0; i < Math.min(x.length, y.length); i++) {
     let v = parseInt(x[i], 16) ^ parseInt(y[i], 16);
@@ -53,19 +56,27 @@ export function hashDistance(a: string, b: string): number {
   return d;
 }
 
-/** Diferencia media de color (0-255) entre las grillas 4x4; sin dato de color, 0. */
+/** Diferencia media (0-255) entre las miniaturas, solo donde alguna de las dos no es fondo blanco. */
 export function colorDistance(a: string, b: string): number {
-  const x = a.split("|")[1];
-  const y = b.split("|")[1];
-  if (!x || !y || x.length !== y.length) return 0;
+  const x = parts(a)[1];
+  const y = parts(b)[1];
+  if (!x || !y || x.length !== y.length) return 255;
   let sum = 0;
-  for (let i = 0; i < x.length; i += 2) sum += Math.abs(parseInt(x.slice(i, i + 2), 16) - parseInt(y.slice(i, i + 2), 16));
-  return Math.round(sum / (x.length / 2));
+  let n = 0;
+  for (let i = 0; i < x.length; i += 6) {
+    const p = [0, 2, 4].map((k) => parseInt(x.slice(i + k, i + k + 2), 16));
+    const q = [0, 2, 4].map((k) => parseInt(y.slice(i + k, i + k + 2), 16));
+    if (p.every((v) => v > 238) && q.every((v) => v > 238)) continue;
+    sum += Math.abs(p[0] - q[0]) + Math.abs(p[1] - q[1]) + Math.abs(p[2] - q[2]);
+    n += 3;
+  }
+  return n ? Math.round((sum / n) * 10) / 10 : 0;
 }
 
-/** La misma foto: misma forma y mismo color. */
+/** La misma foto (aunque tenga otro nombre o se haya vuelto a guardar). */
 export function isSamePhoto(a: string, b: string): boolean {
-  return hashDistance(a, b) <= 12 && colorDistance(a, b) <= 12;
+  if (!a.startsWith("v2:") || !b.startsWith("v2:")) return false;
+  return hashDistance(a, b) <= 40 && colorDistance(a, b) <= 4;
 }
 
 export async function deleteMedia(keys: string[]): Promise<void> {

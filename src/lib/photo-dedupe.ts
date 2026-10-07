@@ -29,11 +29,11 @@ export async function backfillHashes(): Promise<number> {
     const rows = await db
       .select({ key: media.key, data: media.data })
       .from(media)
-      .where(or(isNull(media.hash), sql`${media.hash} not like '%|%'`))
+      .where(or(isNull(media.hash), sql`${media.hash} not like 'v2:%'`))
       .limit(60);
     if (rows.length === 0) return done;
     for (const r of rows) {
-      const hash = await imageHash(r.data).catch(() => "error|");
+      const hash = await imageHash(r.data).catch(() => "error");
       await db.update(media).set({ hash }).where(eq(media.key, r.key));
       done++;
     }
@@ -72,7 +72,7 @@ function better(a: Img, b: Img): Img {
 export async function removeDuplicatePhotos() {
   const flag = await db.query.settings.findFirst({ where: eq(settings.key, "fotos-repetidas") });
   const apply = (flag?.value as { aplicar?: boolean } | undefined)?.aplicar === true;
-  const images = (await loadImages()).filter((i) => i.hash && !i.hash.startsWith("error"));
+  const images = (await loadImages()).filter((i) => i.hash?.startsWith("v2:"));
   const byProduct = new Map<number, Img[]>();
   for (const i of images) byProduct.set(i.productId, [...(byProduct.get(i.productId) ?? []), i]);
   const removed: { article: string | null; quitada: string | null; queda: string | null; forma: number; color: number }[] = [];
@@ -114,7 +114,7 @@ export async function removeDuplicatePhotos() {
 
 /** La misma foto en artículos distintos (posible foto en el artículo equivocado), salvo los conjuntos. */
 export async function crossProductReport() {
-  const images = (await loadImages()).filter((i) => i.hash && !i.hash.startsWith("error"));
+  const images = (await loadImages()).filter((i) => i.hash?.startsWith("v2:"));
   const pairs: { a: string | null; artA: string | null; b: string | null; artB: string | null; forma: number; color: number }[] = [];
   for (let i = 0; i < images.length; i++)
     for (let j = i + 1; j < images.length; j++) {

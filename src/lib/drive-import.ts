@@ -118,7 +118,7 @@ export async function importArticlePhotos(article: string, limit = 3, skip: stri
     .from(productImages)
     .leftJoin(media, sql`${media.key} = ${productImages.blobPath}`)
     .where(eq(productImages.productId, product.id));
-  const hashes = existing.map((e) => e.hash).filter((h): h is string => Boolean(h && h.includes("|")));
+  const hashes = existing.map((e) => e.hash).filter((h): h is string => Boolean(h?.startsWith("v2:")));
   const done = new Set(existing.map((e) => e.driveFileId).filter(Boolean));
   // "skip": las que ya fallaron en esta pasada, para que una foto con problemas no frene a las demás
   const skipped = new Set(skip);
