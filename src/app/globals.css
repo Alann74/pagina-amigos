@@ -27,6 +27,7 @@
   --animate-rise: rise 900ms var(--ease-out-soft) both;
   --animate-hero-zoom: hero-zoom 9s var(--ease-out-soft) both;
   --animate-pop: pop 420ms var(--ease-out-soft);
+  --animate-marquee: marquee 38s linear infinite;
 
   @keyframes fade-in {
     from { opacity: 0; }
@@ -51,6 +52,10 @@
   @keyframes hero-zoom {
     from { transform: scale(1.07); }
     to { transform: scale(1); }
+  }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
   }
   @keyframes pop {
     0% { transform: scale(1); }
@@ -247,7 +252,46 @@ html.reveal [data-reveal]:not(.is-visible) {
   transform: translateY(18px);
 }
 
+/* Transición entre páginas (app/(shop)/template.tsx) */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-old(.pagina) {
+  animation: 160ms ease-in both vt-fade-out;
+}
+::view-transition-new(.pagina) {
+  animation: 460ms var(--ease-out-soft) 90ms both vt-rise-in;
+}
+::view-transition-group(site-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(site-header) {
+  display: none;
+}
+::view-transition-new(site-header) {
+  animation: none;
+}
+@keyframes vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes vt-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+
   *,
   *::before,
   *::after {

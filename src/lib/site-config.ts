@@ -37,7 +37,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   whatsappNumber: "5493412550777",
   announcement: {
     enabled: true,
-    text: "10% OFF EN EFECTIVO / TRANSFERENCIA · 3 CUOTAS SIN INTERÉS",
+    text: "10% OFF EN EFECTIVO / TRANSFERENCIA · 3 CUOTAS SIN INTERÉS · ENVÍOS A TODO EL PAÍS · RETIRÁ EN MITRE 830, ROSARIO",
     href: null,
   },
   hero: {

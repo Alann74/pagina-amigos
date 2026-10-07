@@ -22,16 +22,16 @@ export function RevealOnScroll() {
       { rootMargin: "0px 0px -6% 0px", threshold: 0.01 },
     );
     const seen = new WeakSet<Element>();
-    let first = true;
+    // Lo que ya está en pantalla cuando aparece (al abrir o al cambiar de página) se muestra directo:
+    // de eso se encarga la transición de página
     const scan = () => {
       document.querySelectorAll("[data-reveal]:not(.is-visible)").forEach((el) => {
         if (seen.has(el)) return;
         seen.add(el);
         const r = el.getBoundingClientRect();
-        if (first && r.top < window.innerHeight && r.bottom > 0) el.classList.add("is-visible");
+        if (r.top < window.innerHeight && r.bottom > 0) el.classList.add("is-visible");
         else io.observe(el);
       });
-      first = false;
     };
     scan();
     root.classList.add("reveal");

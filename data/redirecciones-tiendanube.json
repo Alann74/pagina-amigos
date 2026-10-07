@@ -1,0 +1,801 @@
+{
+ "nota": "Direcciones de la tienda anterior (Tienda Nube, www.inedita-rosario.com) que llevan a la misma página de la tienda nueva. Sacadas del sitemap de Tienda Nube el 7/10/2026.",
+ "redirecciones": [
+  {
+   "source": "/productos/art-39909-remera-li",
+   "destination": "/producto/remera-li-39909"
+  },
+  {
+   "source": "/productos/art-39925-body-scarlett",
+   "destination": "/producto/body-scarlett-39925"
+  },
+  {
+   "source": "/productos/art-39863-straight-larson",
+   "destination": "/producto/straight-larson-39863"
+  },
+  {
+   "source": "/productos/art-39904-musculosa-gadot",
+   "destination": "/producto/musculosa-gadot-39904"
+  },
+  {
+   "source": "/productos/art-38696-short-zara",
+   "destination": "/producto/short-zara-38696"
+  },
+  {
+   "source": "/productos/art-39861-wide-leg-kidman",
+   "destination": "/producto/wide-leg-kidman-39861"
+  },
+  {
+   "source": "/productos/art-39981-remera-ana",
+   "destination": "/producto/remera-ana-39981"
+  },
+  {
+   "source": "/productos/art-39862-straight-brie",
+   "destination": "/producto/straight-brie-39862"
+  },
+  {
+   "source": "/productos/art-39200-mono-ali",
+   "destination": "/producto/mono-ali-39200"
+  },
+  {
+   "source": "/productos/art-39879-mini-hayek",
+   "destination": "/producto/mini-hayek-39879"
+  },
+  {
+   "source": "/productos/art-39876-wide-leg-dakota",
+   "destination": "/producto/wide-leg-dakota-39876"
+  },
+  {
+   "source": "/productos/art-39890-campera-darin",
+   "destination": "/producto/campera-darin-39890"
+  },
+  {
+   "source": "/productos/art-39001-blusa-cruz",
+   "destination": "/producto/blusa-cruz-39001"
+  },
+  {
+   "source": "/productos/art-39700-blazer-forest",
+   "destination": "/producto/blazer-forest-39700"
+  },
+  {
+   "source": "/productos/art-39705-chaleco-winona",
+   "destination": "/producto/chaleco-winona-39705"
+  },
+  {
+   "source": "/productos/art-39992-musculosa-elba",
+   "destination": "/producto/musculosa-elba-39992"
+  },
+  {
+   "source": "/productos/art-38648-piloto-frank",
+   "destination": "/producto/piloto-frank-38648"
+  },
+  {
+   "source": "/productos/art-39936-remera-stewart",
+   "destination": "/producto/remera-stewart-39936"
+  },
+  {
+   "source": "/productos/art-38267-pantalon-lauv",
+   "destination": "/producto/pantalon-lauv-38267"
+  },
+  {
+   "source": "/productos/art-39418-pantalon-saldana",
+   "destination": "/producto/pantalon-saldana-39418"
+  },
+  {
+   "source": "/productos/art-39208-vestido-olsen",
+   "destination": "/producto/vestido-olsen-39208"
+  },
+  {
+   "source": "/productos/art-39937-remera-cate",
+   "destination": "/producto/remera-cate-39937"
+  },
+  {
+   "source": "/productos/art-39996-remera-garcia",
+   "destination": "/producto/remera-garcia-39996"
+  },
+  {
+   "source": "/productos/art-39870-campanita-lady",
+   "destination": "/producto/campanita-lady-39870"
+  },
+  {
+   "source": "/productos/art-39000-blusa-davis",
+   "destination": "/producto/blusa-davis-39000"
+  },
+  {
+   "source": "/productos/art-39991-remera-idris",
+   "destination": "/producto/remera-idris-39991"
+  },
+  {
+   "source": "/productos/art-39987-remera-sandra",
+   "destination": "/producto/remera-sandra-39987"
+  },
+  {
+   "source": "/productos/art-39410-short-day",
+   "destination": "/producto/short-day-39410"
+  },
+  {
+   "source": "/productos/art-38699-blusa-raye",
+   "destination": "/producto/blusa-raye-38699"
+  },
+  {
+   "source": "/productos/art-37675-vestido-sativa",
+   "destination": "/producto/vestido-sativa-37675"
+  },
+  {
+   "source": "/productos/art-39016-top-depp",
+   "destination": "/producto/top-depp-39016"
+  },
+  {
+   "source": "/productos/art-39409-short-isla",
+   "destination": "/producto/short-isla-39409"
+  },
+  {
+   "source": "/productos/art-39869-wide-leg-kirby",
+   "destination": "/producto/wide-leg-kirby-39869"
+  },
+  {
+   "source": "/productos/art-37678-pantalon-malva",
+   "destination": "/producto/pantalon-malva-37678"
+  },
+  {
+   "source": "/productos/art-39920-remera-grint",
+   "destination": "/producto/remera-grint-39920"
+  },
+  {
+   "source": "/productos/art-37685-remera-pachanoi",
+   "destination": "/producto/remera-pachanoi-37685"
+  },
+  {
+   "source": "/productos/art-38673-camisa-aretha",
+   "destination": "/producto/camisa-aretha-38673"
+  },
+  {
+   "source": "/productos/art-39900-remera-millie",
+   "destination": "/producto/remera-millie-39900"
+  },
+  {
+   "source": "/productos/art-39417-pantalon-winona",
+   "destination": "/producto/pantalon-winona-39417"
+  },
+  {
+   "source": "/productos/art-39980-remera-jenna",
+   "destination": "/producto/remera-jenna-39980"
+  },
+  {
+   "source": "/productos/art-39014-blusa-diane",
+   "destination": "/producto/blusa-diane-39014"
+  },
+  {
+   "source": "/productos/art-39004-blusa-julia",
+   "destination": "/producto/blusa-julia-39004"
+  },
+  {
+   "source": "/productos/art-38684-remera-horan",
+   "destination": "/producto/remera-horan-38684"
+  },
+  {
+   "source": "/productos/art-39411-pantalon-dev",
+   "destination": "/producto/pantalon-dev-39411"
+  },
+  {
+   "source": "/productos/art-39013-blusa-mirren",
+   "destination": "/producto/blusa-mirren-39013"
+  },
+  {
+   "source": "/productos/art-39921-remera-kit",
+   "destination": "/producto/remera-kit-39921"
+  },
+  {
+   "source": "/productos/art-39923-remera-natalie",
+   "destination": "/producto/remera-natalie-39923"
+  },
+  {
+   "source": "/productos/art-39017-top-blanchett",
+   "destination": "/producto/top-blanchett-39017"
+  },
+  {
+   "source": "/productos/art-39998-remera-megan",
+   "destination": "/producto/remera-megan-39998"
+  },
+  {
+   "source": "/productos/art-39010-top-barrymore",
+   "destination": "/producto/top-barrymore-39010"
+  },
+  {
+   "source": "/productos/art-39407-pantalon-driver",
+   "destination": "/producto/pantalon-driver-39407"
+  },
+  {
+   "source": "/productos/art-39910-remera-cameron",
+   "destination": "/producto/remera-cameron-39910"
+  },
+  {
+   "source": "/productos/art-39906-remera-jet",
+   "destination": "/producto/remera-jet-39906"
+  },
+  {
+   "source": "/productos/art-38672-blusa-keys",
+   "destination": "/producto/blusa-keys-38672"
+  },
+  {
+   "source": "/productos/art-39902-remera-bobby",
+   "destination": "/producto/remera-bobby-39902"
+  },
+  {
+   "source": "/productos/art-39988-remera-bullock",
+   "destination": "/producto/remera-bullock-39988"
+  },
+  {
+   "source": "/productos/art-38674-pantalon-arethea",
+   "destination": "/producto/pantalon-arethea-38674"
+  },
+  {
+   "source": "/productos/art-37260-blusa-physalis",
+   "destination": "/producto/blusa-physalis-37260"
+  },
+  {
+   "source": "/productos/art-39927-remera-gaga",
+   "destination": "/producto/remera-gaga-39927"
+  },
+  {
+   "source": "/productos/art-39404-pantalon-jackie",
+   "destination": "/producto/pantalon-jackie-39404"
+  },
+  {
+   "source": "/productos/art-39413-pantalon-kristen",
+   "destination": "/producto/pantalon-kristen-39413"
+  },
+  {
+   "source": "/productos/art-38627-blusa-janis",
+   "destination": "/producto/blusa-janis-38627"
+  },
+  {
+   "source": "/productos/art-39918-remera-austin",
+   "destination": "/producto/remera-austin-39918"
+  },
+  {
+   "source": "/productos/art-39405-pantalon-chan",
+   "destination": "/producto/pantalon-chan-39405"
+  },
+  {
+   "source": "/productos/art-39703-blazer-rebeca",
+   "destination": "/producto/blazer-rebeca-39703"
+  },
+  {
+   "source": "/productos/art-38971-remera-brody",
+   "destination": "/producto/remera-brody-38971"
+  },
+  {
+   "source": "/productos/art-39982-remera-taraji",
+   "destination": "/producto/remera-taraji-39982"
+  },
+  {
+   "source": "/productos/art-38178-blazer-brandon",
+   "destination": "/producto/blazer-brandon-38178"
+  },
+  {
+   "source": "/productos/art-39994-remera-craig-ss27",
+   "destination": "/producto/remera-craig-39994"
+  },
+  {
+   "source": "/productos/art-39402-pantalon-kaluuya",
+   "destination": "/producto/pantalon-kaluuya-39402"
+  },
+  {
+   "source": "/productos/art-39008-blusa-amanda",
+   "destination": "/producto/blusa-amanda-39008"
+  },
+  {
+   "source": "/productos/art-38675-remera-lola",
+   "destination": "/producto/remera-lola-38675"
+  },
+  {
+   "source": "/productos/art-37436-pantalon-citrus",
+   "destination": "/producto/pantalon-citrus-37436"
+  },
+  {
+   "source": "/productos/art-39207-vestido-firth",
+   "destination": "/producto/vestido-firth-39207"
+  },
+  {
+   "source": "/productos/art-39901-remera-gal",
+   "destination": "/producto/remera-gal-39901"
+  },
+  {
+   "source": "/productos/art-39907-remera-reynolds",
+   "destination": "/producto/remera-reynolds-39907"
+  },
+  {
+   "source": "/productos/art-38268-buzo-musgraves",
+   "destination": "/producto/buzo-musgraves-38268"
+  },
+  {
+   "source": "/productos/art-39926-body-joy",
+   "destination": "/producto/body-joy-39926"
+  },
+  {
+   "source": "/productos/art-39939-remera-leonardo",
+   "destination": "/producto/remera-leonardo-39939"
+  },
+  {
+   "source": "/productos/art-38254-blusa-styles",
+   "destination": "/producto/blusa-styles-38254"
+  },
+  {
+   "source": "/productos/art-39911-remera-diaz",
+   "destination": "/producto/remera-diaz-39911"
+  },
+  {
+   "source": "/productos/art-39003-blusa-zoe",
+   "destination": "/producto/blusa-zoe-39003"
+  },
+  {
+   "source": "/productos/art-39002-blusa-kaluya",
+   "destination": "/producto/blusa-kaluya-39002"
+  },
+  {
+   "source": "/productos/art-38682-remera-sinatra",
+   "destination": "/producto/remera-sinatra-38682"
+  },
+  {
+   "source": "/productos/art-39917-remera-carrey",
+   "destination": "/producto/remera-carrey-39917"
+  },
+  {
+   "source": "/productos/art-38266-buzo-lauv",
+   "destination": "/producto/buzo-lauv-38266"
+  },
+  {
+   "source": "/productos/art-37676-pantalon-colletia",
+   "destination": "/producto/pantalon-colletia-37676"
+  },
+  {
+   "source": "/productos/art-39266-vestido-lupita",
+   "destination": "/producto/vestido-lupita-39266"
+  },
+  {
+   "source": "/productos/art-37665-blusa-ipomoea",
+   "destination": "/producto/blusa-ipomoea-37665"
+  },
+  {
+   "source": "/productos/art-39914-remera-mendes",
+   "destination": "/producto/remera-mendes-39914"
+  },
+  {
+   "source": "/productos/art-39007-blusa-driver",
+   "destination": "/producto/blusa-driver-39007"
+  },
+  {
+   "source": "/productos/art-38676-remera-steven",
+   "destination": "/producto/remera-steven-38676"
+  },
+  {
+   "source": "/productos/art-39201-vestido-wood",
+   "destination": "/producto/vestido-wood-39201"
+  },
+  {
+   "source": "/productos/art-39203-vestido-berry",
+   "destination": "/producto/vestido-berry-39203"
+  },
+  {
+   "source": "/productos/art-39938-musculosa-dicaprio",
+   "destination": "/producto/musculosa-dicaprio-39938"
+  },
+  {
+   "source": "/productos/art-39919-remera-vin",
+   "destination": "/producto/remera-vin-39919"
+  },
+  {
+   "source": "/productos/art-39989-remera-amy",
+   "destination": "/producto/remera-amy-39989"
+  },
+  {
+   "source": "/productos/art-39401-pantalon-forest",
+   "destination": "/producto/pantalon-forest-39401"
+  },
+  {
+   "source": "/productos/art-39012-blusa-keira",
+   "destination": "/producto/blusa-keira-39012"
+  },
+  {
+   "source": "/productos/art-38690-remera-stefani",
+   "destination": "/producto/remera-stefani-38690"
+  },
+  {
+   "source": "/productos/art-39005-blusa-sofia",
+   "destination": "/producto/blusa-sofia-39005"
+  },
+  {
+   "source": "/productos/art-39400-short-cruz",
+   "destination": "/producto/short-cruz-39400"
+  },
+  {
+   "source": "/productos/art-39415-pantalon-lawrence",
+   "destination": "/producto/pantalon-lawrence-39415"
+  },
+  {
+   "source": "/productos/art-39903-remera-brown",
+   "destination": "/producto/remera-brown-39903"
+  },
+  {
+   "source": "/productos/art-39908-musculosa-ryan",
+   "destination": "/producto/musculosa-ryan-39908"
+  },
+  {
+   "source": "/productos/art-38680-remera-julien",
+   "destination": "/producto/remera-julien-38680"
+  },
+  {
+   "source": "/productos/art-39999-remera-fox",
+   "destination": "/producto/remera-fox-39999"
+  },
+  {
+   "source": "/productos/art-38681-remera-tukker",
+   "destination": "/producto/remera-tukker-38681"
+  },
+  {
+   "source": "/productos/art-39860-wide-leg-nicole-coleccion-2027",
+   "destination": "/producto/wide-leg-nicole-39860"
+  },
+  {
+   "source": "/productos/art-39406-pantalon-regina",
+   "destination": "/producto/pantalon-regina-39406"
+  },
+  {
+   "source": "/productos/art-39412-pantalon-rebeca",
+   "destination": "/producto/pantalon-rebeca-39412"
+  },
+  {
+   "source": "/productos/carot-jordan-1i77m",
+   "destination": "/producto/carrot-jordan-39871"
+  },
+  {
+   "source": "/productos/campera-penelope-7jrq9",
+   "destination": "/producto/campera-penelope-39864"
+  },
+  {
+   "source": "/productos/wide-leg-penelope-wr4es",
+   "destination": "/producto/wide-leg-penelope-39865"
+  },
+  {
+   "source": "/productos/art-37664-top-tubiflora",
+   "destination": "/producto/top-tubiflora-37664"
+  },
+  {
+   "source": "/productos/art-37672-vestido-manzanilla",
+   "destination": "/producto/vestido-manzanilla-37672"
+  },
+  {
+   "source": "/productos/art-37699-blusa-aristida",
+   "destination": "/producto/blusa-aristida-37699"
+  },
+  {
+   "source": "/productos/art-39020-blusa-hugh",
+   "destination": "/producto/blusa-hugh-39020"
+  },
+  {
+   "source": "/productos/art-39091-top-emma",
+   "destination": "/producto/top-emma-39091"
+  },
+  {
+   "source": "/productos/art-39180-cartera-matt",
+   "destination": "/producto/cartera-matt-39180"
+  },
+  {
+   "source": "/productos/art-39195-bolso-paltrow",
+   "destination": "/producto/bolso-paltrow-39195"
+  },
+  {
+   "source": "/productos/art-39198-cinturon-willis",
+   "destination": "/producto/cinturon-willis-39198"
+  },
+  {
+   "source": "/productos/art-39202-vestido-nyongo",
+   "destination": "/producto/vestido-nyongo-39202"
+  },
+  {
+   "source": "/productos/art-39204-mono-freeman",
+   "destination": "/producto/mono-freeman-39204"
+  },
+  {
+   "source": "/productos/art-39205-vestido-roberts",
+   "destination": "/producto/vestido-roberts-39205"
+  },
+  {
+   "source": "/productos/art-39212-vestido-james",
+   "destination": "/producto/vestido-james-39212"
+  },
+  {
+   "source": "/productos/art-39366-pollera-ortega",
+   "destination": "/producto/pollera-ortega-39366"
+  },
+  {
+   "source": "/productos/art-39801-carrot-brad",
+   "destination": "/producto/carrot-brad-39801"
+  },
+  {
+   "source": "/productos/art-39873-wide-leg-mara",
+   "destination": "/producto/wide-leg-mara-39873"
+  },
+  {
+   "source": "/productos/art-39878-bermuda-bill",
+   "destination": "/producto/bermuda-bill-39878"
+  },
+  {
+   "source": "/productos/art-39887-recto-stone",
+   "destination": "/producto/recto-stone-39887"
+  },
+  {
+   "source": "/productos/art-39888-oxford-travolta",
+   "destination": "/producto/oxford-travolta-39888"
+  },
+  {
+   "source": "/productos/art-39931-remera-phoenix",
+   "destination": "/producto/remera-phoenix-39931"
+  },
+  {
+   "source": "/productos/art-39935-musculosa-portman",
+   "destination": "/producto/musculosa-portman-39935"
+  },
+  {
+   "source": "/productos/art-39990-remera-adams",
+   "destination": "/producto/remera-adams-39990"
+  },
+  {
+   "source": "/productos/art-39995-musculosa-gael",
+   "destination": "/producto/musculosa-gael-39995"
+  },
+  {
+   "source": "/productos/art-39997-musculosa-bernal",
+   "destination": "/producto/musculosa-bernal-39997"
+  },
+  {
+   "source": "/productos/art-39425-short-farrell",
+   "destination": "/producto/short-farrell-39425"
+  },
+  {
+   "source": "/productos/art-39880-mini-halle",
+   "destination": "/producto/mini-halle-39880"
+  },
+  {
+   "source": "/productos/art-39364-pollera-damon",
+   "destination": "/producto/pollera-damon-39364"
+  },
+  {
+   "source": "/productos/art-39196-cartera-wong",
+   "destination": "/producto/cartera-wong-39196"
+  },
+  {
+   "source": "/productos/art-39092-top-robbie",
+   "destination": "/producto/top-robbie-39092"
+  },
+  {
+   "source": "/productos/art-39427-babucha-lea",
+   "destination": "/producto/babucha-lea-39427"
+  },
+  {
+   "source": "/productos/art-39889-straight-malek",
+   "destination": "/producto/straight-malek-39889"
+  },
+  {
+   "source": "/productos/art-39416-short-hanks",
+   "destination": "/producto/short-hanks-39416"
+  },
+  {
+   "source": "/productos/art-39993-musculosa-daniel",
+   "destination": "/producto/musculosa-daniel-39993"
+  },
+  {
+   "source": "/productos/art-39606-musculosa-crowe",
+   "destination": "/producto/musculosa-crowe-39606"
+  },
+  {
+   "source": "/productos/art-39604-musculosa-streep",
+   "destination": "/producto/musculosa-streep-39604"
+  },
+  {
+   "source": "/productos/art-39160-sweater-ronan",
+   "destination": "/producto/sweater-ronan-39160"
+  },
+  {
+   "source": "/productos/art-39215-vestido-gosling",
+   "destination": "/producto/vestido-gosling-39215"
+  },
+  {
+   "source": "/productos/art-37264-blusa-flaveria",
+   "destination": "/producto/blusa-flaveria-37264"
+  },
+  {
+   "source": "/productos/art-37263-vestido-hyptis",
+   "destination": "/producto/vestido-hyptis-37263"
+  },
+  {
+   "source": "/productos/art-39018-top-hathaway",
+   "destination": "/producto/top-hathaway-39018"
+  },
+  {
+   "source": "/productos/art-39475-pantalon-mescal",
+   "destination": "/producto/pantalon-mescal-39475"
+  },
+  {
+   "source": "/productos/art-39603-musculosa-smith",
+   "destination": "/producto/musculosa-smith-39603"
+  },
+  {
+   "source": "/productos/art-37674-vestido-ambrosia",
+   "destination": "/producto/vestido-ambrosia-37674"
+  },
+  {
+   "source": "/productos/art-39601-remera-niro",
+   "destination": "/producto/remera-niro-39601"
+  },
+  {
+   "source": "/productos/art-39165-sweater-sean",
+   "destination": "/producto/sweater-sean-39165"
+  },
+  {
+   "source": "/productos/art-39472-short-dench",
+   "destination": "/producto/short-dench-39472"
+  },
+  {
+   "source": "/productos/art-39605-musculosa-angelina",
+   "destination": "/producto/musculosa-angelina-39605"
+  },
+  {
+   "source": "/productos/art-39164-sweater-helen",
+   "destination": "/producto/sweater-helen-39164"
+  },
+  {
+   "source": "/productos/art-39300-pollera-downey",
+   "destination": "/producto/pollera-downey-39300"
+  },
+  {
+   "source": "/productos/art-39932-musculosa-knightley",
+   "destination": "/producto/musculosa-knightley-39932"
+  },
+  {
+   "source": "/productos/art-39181-cartera-kang",
+   "destination": "/producto/cartera-kang-39181"
+  },
+  {
+   "source": "/productos/art-39951-strapless-dunst",
+   "destination": "/producto/strapless-dunst-39951"
+  },
+  {
+   "source": "/productos/art-39209-mono-reeves",
+   "destination": "/producto/mono-reeves-39209"
+  },
+  {
+   "source": "/productos/art-39194-bolso-spencer",
+   "destination": "/producto/bolso-spencer-39194"
+  },
+  {
+   "source": "/productos/art-39602-remera-morgan",
+   "destination": "/producto/remera-morgan-39602"
+  },
+  {
+   "source": "/productos/art-39704-chaleco-eastwood",
+   "destination": "/producto/chaleco-eastwood-39704"
+  },
+  {
+   "source": "/productos/art-39422-pantalon-bellucci",
+   "destination": "/producto/pantalon-bellucci-39422"
+  },
+  {
+   "source": "/productos/art-39403-short-king",
+   "destination": "/producto/short-king-39403"
+  },
+  {
+   "source": "/productos/art-39949-remera-tatum",
+   "destination": "/producto/remera-tatum-39949"
+  },
+  {
+   "source": "/productos/art-39474-short-emma",
+   "destination": "/producto/short-emma-39474"
+  },
+  {
+   "source": "/productos/art-37262-pantalon-kumquat",
+   "destination": "/producto/pantalon-kumquat-37262"
+  },
+  {
+   "source": "/productos/art-39269-vestido-colin",
+   "destination": "/producto/vestido-colin-39269"
+  },
+  {
+   "source": "/productos/art-37261-blusa-kumquat",
+   "destination": "/producto/blusa-kumquat-37261"
+  },
+  {
+   "source": "/productos/art-39365-pollera-elle",
+   "destination": "/producto/pollera-elle-39365"
+  },
+  {
+   "source": "/productos/art-39886-straight-bale",
+   "destination": "/producto/straight-bale-39886"
+  },
+  {
+   "source": "/productos/art-39093-camisa-dench",
+   "destination": "/producto/camisa-dench-39093"
+  },
+  {
+   "source": "/productos/art-39419-pantalon-hathaway",
+   "destination": "/producto/pantalon-hathaway-39419"
+  },
+  {
+   "source": "/blusas",
+   "destination": "/categoria/blusas"
+  },
+  {
+   "source": "/remeras",
+   "destination": "/categoria/remeras"
+  },
+  {
+   "source": "/musculosas",
+   "destination": "/categoria/musculosas"
+  },
+  {
+   "source": "/shorts",
+   "destination": "/categoria/shorts"
+  },
+  {
+   "source": "/vestidos",
+   "destination": "/categoria/vestidos"
+  },
+  {
+   "source": "/bodies",
+   "destination": "/categoria/bodies"
+  },
+  {
+   "source": "/buzos",
+   "destination": "/categoria/buzos"
+  },
+  {
+   "source": "/blazers",
+   "destination": "/categoria/blazers"
+  },
+  {
+   "source": "/camisas",
+   "destination": "/categoria/camisas"
+  },
+  {
+   "source": "/tops",
+   "destination": "/categoria/tops"
+  },
+  {
+   "source": "/camperas",
+   "destination": "/categoria/camperas"
+  },
+  {
+   "source": "/pilotos",
+   "destination": "/categoria/pilotos"
+  },
+  {
+   "source": "/chalecos",
+   "destination": "/categoria/chalecos"
+  },
+  {
+   "source": "/carteras",
+   "destination": "/categoria/carteras"
+  },
+  {
+   "source": "/accesorios",
+   "destination": "/categoria/accesorios"
+  },
+  {
+   "source": "/jeans",
+   "destination": "/categoria/jeans"
+  },
+  {
+   "source": "/bermudas",
+   "destination": "/categoria/bermudas"
+  },
+  {
+   "source": "/pantalones",
+   "destination": "/categoria/pantalones"
+  },
+  {
+   "source": "/sweaters",
+   "destination": "/categoria/sweaters"
+  }
+ ]
+}

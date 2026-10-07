@@ -40,8 +40,8 @@ export async function GET(request: Request) {
       await logImport({ paso: step, estado: result.pending ? "continúa" : "terminado", importadas: result.imported, errores: result.errors.slice(0, 15), cantidadErrores: result.errors.length });
       if (result.pending && step < 40) {
         // Siguiente tanda en una invocación nueva (por el límite de tiempo de cada función)
-        const host = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? url.host;
-        const next = `https://${host}/api/maintenance/import-photos?token=${encodeURIComponent(url.searchParams.get("token")!)}&paso=${step + 1}`;
+        // La misma dirección por la que llegó el pedido (el dominio propio puede no apuntar todavía acá)
+        const next = `https://${url.host}/api/maintenance/import-photos?token=${encodeURIComponent(url.searchParams.get("token")!)}&paso=${step + 1}`;
         await fetch(next, { cache: "no-store", signal: AbortSignal.timeout(20_000) }).catch((e) => logImport({ paso: step, estado: "no se pudo encadenar", error: String(e) }));
       } else {
         const configured = await autoConfigureCampaign().catch((e) => {

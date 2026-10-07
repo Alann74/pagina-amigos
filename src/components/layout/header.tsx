@@ -45,6 +45,7 @@ export function Header({ links = [] }: { links?: HeaderLink[] }) {
       className={`sticky top-0 z-40 bg-paper/95 backdrop-blur-sm transition-[border-color] duration-200 supports-[backdrop-filter]:bg-paper/85 ${
         scrolled ? "border-b border-line" : "border-b border-transparent"
       }`}
+      style={{ viewTransitionName: "site-header" }}
     >
       <div className="mx-auto grid h-13 max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center px-2 sm:h-16 sm:px-6">
         <div className="flex items-center">

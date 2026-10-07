@@ -55,13 +55,23 @@ async function main() {
   const cross = await crossProductReport();
   console.log(`[fotos] Misma foto en artículos distintos (a revisar): ${cross.total}`);
   // La tienda publicada (la versión anterior a este deploy), vista desde afuera
-  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  if (host) {
-    const live = await liveCheck(`https://${host}`).catch((e) => ({ error: String(e) }));
+  const base = process.env.VERCEL ? await liveBase() : null;
+  if (base) {
+    const live = await liveCheck(base).catch((e) => ({ error: String(e) }));
     console.log("[fotos] En vivo:", JSON.stringify((live as { fotos?: unknown }).fotos ?? live).slice(0, 300));
   }
   const check = await checkAllProductPhotos();
   console.log(`[fotos] Revisión: ${check.productosPublicados} productos, ${check.fotos} fotos, ${check.rotas.length} con problemas, ${check.productosSinFoto.length} sin foto`);
+}
+
+/** La tienda publicada: el dominio propio si ya apunta acá (si sigue en Tienda Nube, la dirección de Vercel). */
+async function liveBase(): Promise<string> {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  try {
+    const res = await fetch("https://www.inedita-rosario.com/", { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(6000) });
+    if (res.headers.get("server")?.toLowerCase() === "vercel" || res.headers.has("x-vercel-id")) return "https://www.inedita-rosario.com";
+  } catch {}
+  return "https://inedita-tienda.vercel.app";
 }
 
 main()
