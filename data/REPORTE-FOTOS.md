@@ -3,10 +3,10 @@
 Generado por `scripts/match-photos.mjs`.
 
 - Fotos únicas en Drive (TODAS): **850**
-- Artículos del POS: **180** (+2 sin número de artículo)
-- Artículos con foto: **178**
-- Artículos sin foto: **4**
-- Fotos sin producto (su código de artículo no está en el POS): **121 archivos, 67 códigos**
+- Artículos del POS: **182** (+0 sin número de artículo)
+- Artículos con foto: **180**
+- Artículos sin foto: **2**
+- Fotos sin producto (su código de artículo no está en el POS): **114 archivos, 65 códigos**
 - Fotos sin código reconocible: **0**
 
 ## Productos sin foto
@@ -15,8 +15,7 @@ Generado por `scripts/match-photos.mjs`.
 |---|---|
 | 39300 | Pollera Downey |
 | 39212 | Vestido James |
-| — | Wide Leg Penelope (sin artículo en POS) |
-| — | Campera Penelope (sin artículo en POS) |
+
 
 ## Fotos con artículo que no está en el POS
 
@@ -75,8 +74,6 @@ Generado por `scripts/match-photos.mjs`.
 | 39702 | __8.B-39408-33037_SET CON 39702_limpia.jpg<br>__8.A-39702-35062_SET CON 39408_limpia.jpg |
 | 39760 | __18.B-39467_SET CON 39760_limpia.jpg<br>__18.A-39760_SET CON 39467_limpia.jpg |
 | 39761 | __4.A-39761_SET CON 39470_limpia.jpg<br>__4.B-39470_SET CON 39761_limpia.jpg |
-| 39864 | __17.B-39865_SET CON 39864_limpia.jpg<br>__17.A-39864_SET CON 39865_limpia.jpg<br>39864 39865 41.jpg<br>39864 39865 42.jpg<br>(+3) |
-| 39865 | __17.B-39865_SET CON 39864_limpia.jpg<br>__17.A-39864_SET CON 39865_limpia.jpg<br>39864 39865 41.jpg<br>39864 39865 42.jpg<br>(+3) |
 | 39881 | __15-39881_limpia.jpg |
 | 39905 | __38-39905-28148_limpia.jpg<br>39905 1.png<br>39905 5.png<br>39905 3.png |
 | 39912 | __36-39912-33019_limpia.jpg<br>39912 1.png<br>39912 7.png<br>39912 6.png<br>(+1) |

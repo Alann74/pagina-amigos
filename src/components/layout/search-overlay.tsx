@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image from "@/components/safe-image";
 import { PriceText } from "@/components/wholesale";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

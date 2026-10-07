@@ -67,8 +67,8 @@ pos_id,articulo,nombre,categoria,precio,colores,talles,nota
 66,37699,Blusa Aristida,Blusas,67000,AMARILLO|BLANCO|NEGRO|ROSA|VERDE,S|M|L,3 variantes ROSA con precio 0 en POS
 67,37672,Vestido Manzanilla,Vestidos,134000,BLANCO|NEGRO,S|M|L,
 68,37664,Top Tubiflora,Tops,58000,AMARILLO|BLANCO|CELESTE|NEGRO|ROSA,S|M|L,
-69,,Wide Leg Penelope,Jeans,134000,,24|26|28|30|32|34|36,SIN ARTICULO en POS; categoria inferida
-70,,Campera Penelope,Camperas,169000,,S|M|L,SIN ARTICULO en POS; categoria inferida
+69,39865,Wide Leg Penelope,Jeans,134000,,24|26|28|30|32|34|36,sin artículo en el POS: tomado de la lista de precios por mayor; categoria inferida
+70,39864,Campera Penelope,Camperas,169000,,S|M|L,sin artículo en el POS: tomado de la lista de precios por mayor; categoria inferida
 71,39871,Carrot Jordan,Pantalones,134000,BEIGE|CHOCOLATE|VERDE MILITAR,S|M|L|XL,categoria inferida
 72,39412,Pantalón Rebeca,Pantalones,70000,CASCARILLA|CHOCOLATE|NEGRO|OFF WHITE,S|M|L|XL,categoria inferida
 73,39406,Pantalón Regina,Pantalones,74000,CAMEL|CELESTE|CHOCOLATE|NEGRO|OFF WHITE|VISON,S|M|L|XL,categoria inferida
