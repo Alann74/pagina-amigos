@@ -5,7 +5,11 @@ import { Pool } from "pg";
 
 async function main() {
   const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("Falta DATABASE_URL");
+  if (!url) {
+    // En un build sin base configurada no se frena el deploy (la tienda se muestra vacía hasta conectarla)
+    if (process.argv.includes("--skip-if-missing")) return console.warn("Sin DATABASE_URL: no se aplican migraciones");
+    throw new Error("Falta DATABASE_URL");
+  }
   const pool = new Pool({ connectionString: url, max: 1 });
   await migrate(drizzle(pool), { migrationsFolder: "./drizzle" });
   await pool.end();

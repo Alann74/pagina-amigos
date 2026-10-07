@@ -10,9 +10,21 @@ import { seedCatalog } from "../src/lib/catalog-seed";
 
 async function main() {
   const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("Falta DATABASE_URL");
+  const ifEmpty = process.argv.includes("--if-empty");
+  if (!url) {
+    if (ifEmpty) return console.warn("Sin DATABASE_URL: no se carga el catálogo");
+    throw new Error("Falta DATABASE_URL");
+  }
   const pool = new Pool({ connectionString: url, max: 2 });
   const db = drizzle(pool, { schema });
+  // En el deploy solo se carga la primera vez (después manda el admin)
+  if (ifEmpty) {
+    const [{ n }] = (await pool.query("select count(*)::int as n from products")).rows;
+    if (n > 0) {
+      console.log(`Catálogo ya cargado (${n} productos): no se toca`);
+      return pool.end();
+    }
+  }
   const csv = fs.readFileSync(path.join(process.cwd(), "data/pos-productos.csv"), "utf8");
   const matchesPath = path.join(process.cwd(), "data/photo-matches.json");
   const withPhotos = fs.existsSync(matchesPath) ? new Set(Object.keys(JSON.parse(fs.readFileSync(matchesPath, "utf8")))) : null;

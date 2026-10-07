@@ -22,7 +22,6 @@ for (const line of manifest) {
 }
 const files = [...byTitle.values()];
 
-const COLOR_WORDS = /(?:_| )([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ]*?)( ESP)?$/;
 function classify(title) {
   const base = title.replace(/\.(jpe?g|png|webp)$/i, "");
   const clean = base.replace(/^_+/, "");
