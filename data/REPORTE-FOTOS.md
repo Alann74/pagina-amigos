@@ -1,6 +1,6 @@
 # Fotos de la tienda — revisión del 7/10/2026
 
-Hecho sobre https://inedita-tienda.vercel.app (deploy a8a5b5d). Las fotos se revisaron **mirándolas** (miniaturas de los originales de Drive, artículo por artículo), no solo por el nombre del archivo.
+Hecho sobre https://inedita-tienda.vercel.app (deploys a8a5b5d y 9e2bbf0). Las fotos se revisaron **mirándolas** (miniaturas de los originales de Drive, artículo por artículo), no solo por el nombre del archivo.
 
 ## Resumen
 
@@ -9,7 +9,7 @@ Hecho sobre https://inedita-tienda.vercel.app (deploy a8a5b5d). Las fotos se rev
 - **182 de 182 artículos con fotos**, en este orden: 1) la mejor foto de la modelo con la prenda, 2) otras de la modelo, 3) la prenda sola (frente y espalda de cada color), 4) detalles. La principal se revisó a ojo en los 182.
 - **Repetidas quitadas: 891** (copias "Copia de …", el mismo archivo en dos carpetas y 56 tomas iguales con otro nombre, por ejemplo "__3-39003-35044_limpia" y "39003-1"). Frente/espalda o la misma prenda en otro color **no** se cuentan como repetidas.
 - **Fotos de otra prenda quitadas: 42** (conjuntos: la blusa en el short, fotos donde solo se ve el pantalón en la blusa, etc.).
-- **Encuadre:** 256 fotos con modelo tenían bandas blancas a los costados; se volvieron a recortar a 3:4 desde el original (sin cortar cabezas). Quedan 46 que se terminan en el próximo deploy (automático).
+- **Encuadre:** 277 fotos con modelo tenían bandas blancas a los costados; se volvieron a recortar a 3:4 desde el original (sin cortar cabezas). No queda ninguna pendiente.
 - **Catálogo:** en cada tarjeta se pueden deslizar hasta 6 fotos (con el dedo en el celular, con flechas en la compu). La ficha tiene todas, con miniaturas y zoom.
 
 ## Faltantes / a revisar
