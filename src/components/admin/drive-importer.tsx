@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { searchDrivePhotos } from "@/app/admin/actions";
 import { FeedbackText, Section, useAction } from "@/components/admin/ui";
 import type { PhotoStatus } from "@/lib/drive-import";
 
@@ -21,6 +22,7 @@ export function DriveImporter({ status, looks }: { status: PhotoStatus[]; looks:
   const [finished, setFinished] = useState<string | null>(null);
   const stopRef = useRef(false);
   const lookAction = useAction();
+  const searchAction = useAction();
   const [allLooks, setAllLooks] = useState(false);
 
   const pendingArticles = status.filter((s) => s.productId && s.imported < s.total);
@@ -70,8 +72,8 @@ export function DriveImporter({ status, looks }: { status: PhotoStatus[]; looks:
     <>
       <Section title="Importar desde Google Drive">
         <p className="max-w-2xl text-[14px] leading-relaxed">
-          Las fotos de la carpeta <strong>Temporada 3 (2027) → FOTOS DE CAPSULAS LIMPIAS</strong> ya están cruzadas con los artículos por el número de 5 dígitos del nombre del archivo. Al importarlas se optimizan (WebP en 3 tamaños, 3:4) y se guardan en
-          Vercel Blob: la web no depende de Drive.
+          Las fotos de <strong>Temporada 3 → CAPSULAS FOTOS SOLAS</strong> y <strong>FOTOS DE CAPSULAS LIMPIAS</strong> se cruzan con los artículos por el número de 5 cifras del nombre del archivo. Primero las de la modelo,
+          después la prenda sola. Las repetidas (mismo contenido aunque cambie el nombre) se descartan. Se guardan optimizadas en la base: la web no depende de Drive.
         </p>
         <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div className="border border-line p-4">
@@ -95,6 +97,18 @@ export function DriveImporter({ status, looks }: { status: PhotoStatus[]; looks:
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-4">
+          {!progress ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={searchAction.pending}
+              onClick={() => searchAction.run(() => searchDrivePhotos(), () => router.refresh())}
+              data-testid="drive-search"
+            >
+              {searchAction.pending ? "Buscando en Drive…" : "Buscar fotos nuevas en Drive"}
+            </button>
+          ) : null}
+          <FeedbackText feedback={searchAction.feedback} pending={false} />
           {progress ? (
             <button type="button" className="btn btn-secondary" onClick={() => (stopRef.current = true)}>
               Detener

@@ -692,3 +692,17 @@ export async function applyNewProducts(input: { nuevos: NewProductsPreview["nuev
     return fail(e);
   }
 }
+
+/** Busca fotos nuevas en las carpetas de Drive de Temporada 3 (por el número de artículo del nombre). */
+export async function searchDrivePhotos(): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const { discoverDrivePhotos } = await import("@/lib/drive-discovery");
+    const r = await discoverDrivePhotos();
+    const errores = r.carpetas.filter((c) => c.error);
+    if (errores.length === r.carpetas.length) return { ok: false, error: `No se pudo leer Drive: ${errores[0]?.error ?? "error"}. Revisá que las carpetas sigan compartidas con "cualquiera con el enlace".` };
+    return { ok: true, message: `Drive: ${r.fotos} fotos para ${r.articulos} artículos. Ahora tocá “Importar fotos pendientes”.` };
+  } catch (e) {
+    return fail(e);
+  }
+}

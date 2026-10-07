@@ -3,9 +3,8 @@
 // Nunca frena el deploy.   tsx scripts/photos.ts
 import { syncPhotoOrder } from "../src/lib/drive-import";
 import { importPendingPhotos, logImport, migrateCampaignToDb, migrateImagesToDb, photoProgress } from "../src/lib/photo-autoimport";
-import { db } from "../src/db";
-import { settings } from "../src/db/schema";
-import { listPublicFolder } from "../src/lib/drive-folder";
+import { discoverDrivePhotos } from "../src/lib/drive-discovery";
+import { classificationReport } from "../src/lib/photo-analysis";
 import { liveCheck } from "../src/lib/live-check";
 import { checkAllProductPhotos } from "../src/lib/photo-check";
 import { backfillHashes, crossProductReport, removeDuplicatePhotos } from "../src/lib/photo-dedupe";
@@ -25,6 +24,12 @@ async function main() {
     await logImport({ paso: "deploy-migracion", pasadas: moved.moved, errores: moved.errors.slice(0, 15), cantidadErrores: moved.errors.length, pendientes: moved.pending });
     console.log(`[fotos] Pasadas a la base: ${moved.moved}${moved.errors.length ? ` (${moved.errors.length} con error)` : ""}${moved.pending ? ` · quedan ${moved.pending}` : ""}`);
   }
+  // Fotos en las carpetas de Drive de Temporada 3 (las nuevas se importan abajo)
+  const found = await discoverDrivePhotos().catch((e) => {
+    console.error("[fotos] Búsqueda en Drive:", e);
+    return null;
+  });
+  if (found) console.log(`[fotos] Drive: ${found.fotos} fotos para ${found.articulos} artículos · sin foto: ${found.sinFoto.length} · sin modelo: ${found.sinModelo.length} · ${JSON.stringify(found.carpetas)}`);
   const before = await photoProgress();
   const left = BUDGET - (Date.now() - t0);
   if (before.imported < before.files && left > 30_000) {
@@ -36,20 +41,9 @@ async function main() {
   console.log(`[fotos] Huellas calculadas: ${await backfillHashes()}`);
   const removed = await removeDuplicatePhotos();
   console.log(`[fotos] Repetidas quitadas: ${removed.length}`);
+  await classificationReport().catch((e) => console.error("[fotos] Análisis:", e));
   const cross = await crossProductReport();
   console.log(`[fotos] Misma foto en artículos distintos (a revisar): ${cross.total}`);
-  // Prueba: ¿se puede listar una carpeta pública de Drive desde el servidor? (para encontrar fotos nuevas solas)
-  const sondeo: Record<string, unknown> = { fecha: new Date().toISOString() };
-  for (const [nombre, id] of [["CAPSULAS FOTOS SOLAS", "1DAWlthDwVh0aKYfG8S2TitWdGhDPHdhI"], ["TODAS", "11Fhw_weCSbFMdp8dHj67DlkcpYR3NPJg"]]) {
-    try {
-      const list = await listPublicFolder(id);
-      sondeo[nombre] = { total: list.length, carpetas: list.filter((e) => e.folder).length, ejemplos: list.slice(0, 5).map((e) => e.title) };
-    } catch (e) {
-      sondeo[nombre] = { error: e instanceof Error ? e.message : String(e) };
-    }
-  }
-  await db.insert(settings).values({ key: "drive-sondeo", value: sondeo }).onConflictDoUpdate({ target: settings.key, set: { value: sondeo } });
-  console.log("[fotos] Sondeo Drive:", JSON.stringify(sondeo).slice(0, 300));
   // La tienda publicada (la versión anterior a este deploy), vista desde afuera
   const host = process.env.VERCEL_PROJECT_PRODUCTION_URL;
   if (host) {

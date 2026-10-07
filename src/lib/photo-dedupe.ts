@@ -16,6 +16,12 @@ export async function getExcludedDriveIds(): Promise<Record<string, string[]>> {
   return (row?.value as Record<string, string[]>) ?? {};
 }
 
+export async function excludeDriveIds(article: string, driveIds: string[]) {
+  const excluded = await getExcludedDriveIds();
+  excluded[article] = [...new Set([...(excluded[article] ?? []), ...driveIds])];
+  await db.insert(settings).values({ key: EXCLUDED_KEY, value: excluded }).onConflictDoUpdate({ target: settings.key, set: { value: excluded } });
+}
+
 /** Calcula la huella de las fotos guardadas que no la tienen (usa la foto de la base, sin bajar nada). */
 export async function backfillHashes(): Promise<number> {
   let done = 0;

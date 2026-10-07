@@ -1,17 +1,31 @@
 import { createHash } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { colors, productImages, products, settings } from "@/db/schema";
+import { colors, media, productImages, products, settings } from "@/db/schema";
 import { imageRatio, processCampaignImage, processProductImage } from "@/lib/images";
+import { isSamePhoto } from "@/lib/media";
 import matches from "../../data/photo-matches.json";
 import unmatched from "../../data/photo-unmatched.json";
 
 // Fotos de Drive ("Temporada 3 (2027)" → "FOTOS DE CAPSULAS LIMPIAS") ya cruzadas con los artículos
 // por scripts/match-photos.mjs. Se descargan, se optimizan y se suben a Vercel Blob: la web nunca enlaza a Drive.
 
-export type DriveMatch = { driveId: string; title: string; kind: "catalogo" | "campana" | "look"; color: string | null; back: boolean; look?: string[] };
+export type DriveMatch = { driveId: string; title: string; kind: "catalogo" | "campana" | "look" | "modelo" | "detalle"; color: string | null; back: boolean; look?: string[] };
 
 export const PHOTO_MATCHES = matches as Record<string, DriveMatch[]>;
+
+/**
+ * Fotos por artículo: lo que se encontró en las carpetas de Drive (búsqueda automática) y, si esa búsqueda
+ * no tiene un artículo, el cruce guardado en data/photo-matches.json.
+ */
+export async function loadPhotoMatches(): Promise<Record<string, DriveMatch[]>> {
+  const { getDiscoveredMatches } = await import("@/lib/drive-discovery");
+  const found = await getDiscoveredMatches();
+  if (!found) return PHOTO_MATCHES;
+  const merged: Record<string, DriveMatch[]> = { ...found };
+  for (const [article, list] of Object.entries(PHOTO_MATCHES)) if (!merged[article]) merged[article] = list;
+  return merged;
+}
 export const PHOTO_UNMATCHED = unmatched as { codes: Record<string, string[]>; noCode: string[] };
 
 const MAX_DOWNLOAD = 40 * 1024 * 1024;
@@ -67,7 +81,8 @@ export async function getPhotoStatus(): Promise<PhotoStatus[]> {
   }
   const { getExcludedDriveIds } = await import("@/lib/photo-dedupe");
   const excluded = await getExcludedDriveIds();
-  return Object.entries(PHOTO_MATCHES).map(([article, all]) => {
+  const allMatches = await loadPhotoMatches();
+  return Object.entries(allMatches).map(([article, all]) => {
     const skip = new Set(excluded[article] ?? []);
     const list = all.filter((m) => !skip.has(m.driveId));
     const p = byArticle.get(article);
@@ -85,7 +100,7 @@ export async function getPhotoStatus(): Promise<PhotoStatus[]> {
 
 /** Prenda sola (catálogo): entera sobre blanco. Foto con modelo de proporción parecida a 3:4: recorte desde arriba (sin cortar cabezas). */
 export function fitFor(kind: DriveMatch["kind"], ratio: number | null): "cover" | "contain" {
-  return kind !== "catalogo" && ratio !== null && ratio >= 1.2 && ratio <= 1.55 ? "cover" : "contain";
+  return (kind === "campana" || kind === "modelo" || kind === "look") && ratio !== null && ratio >= 1.2 && ratio <= 1.55 ? "cover" : "contain";
 }
 
 /**
@@ -93,12 +108,17 @@ export function fitFor(kind: DriveMatch["kind"], ratio: number | null): "cover" 
  * y sigue donde quedó (no duplica). El orden final respeta el del cruce (principal, hover, resto).
  */
 export async function importArticlePhotos(article: string, limit = 3, skip: string[] = []) {
-  const list = PHOTO_MATCHES[article];
+  const list = (await loadPhotoMatches())[article];
   if (!list) return { imported: 0, remaining: 0, errors: [`El artículo ${article} no tiene fotos en Drive`], failed: [] };
   const product = await db.query.products.findFirst({ where: eq(products.articleCode, article) });
   if (!product) return { imported: 0, remaining: 0, errors: [`No hay producto con artículo ${article}`], failed: [] };
 
-  const existing = await db.select({ driveFileId: productImages.driveFileId }).from(productImages).where(eq(productImages.productId, product.id));
+  const existing = await db
+    .select({ driveFileId: productImages.driveFileId, hash: media.hash })
+    .from(productImages)
+    .leftJoin(media, sql`${media.key} = ${productImages.blobPath}`)
+    .where(eq(productImages.productId, product.id));
+  const hashes = existing.map((e) => e.hash).filter((h): h is string => Boolean(h && h.includes("|")));
   const done = new Set(existing.map((e) => e.driveFileId).filter(Boolean));
   // "skip": las que ya fallaron en esta pasada, para que una foto con problemas no frene a las demás
   const skipped = new Set(skip);
@@ -113,6 +133,7 @@ export async function importArticlePhotos(article: string, limit = 3, skip: stri
 
   const errors: string[] = [];
   const failed: string[] = [];
+  const duplicates: string[] = [];
   let imported = 0;
   for (const m of pending.slice(0, limit)) {
     try {
@@ -122,6 +143,14 @@ export async function importArticlePhotos(article: string, limit = 3, skip: stri
       const fit = fitFor(m.kind, await imageRatio(buffer));
       const base = `p/${article}-${m.driveId.slice(0, 12)}`;
       const img = await processProductImage(buffer, base, { fit });
+      // Si es la misma foto que otra que ya tiene el producto (con otro nombre), no se agrega
+      const saved = await db.query.media.findFirst({ where: eq(media.key, base), columns: { hash: true } });
+      if (saved?.hash && hashes.some((h) => isSamePhoto(h, saved.hash!))) {
+        await db.delete(media).where(eq(media.key, base));
+        duplicates.push(m.driveId);
+        continue;
+      }
+      if (saved?.hash) hashes.push(saved.hash);
       await db
         .insert(productImages)
         .values({
@@ -143,11 +172,15 @@ export async function importArticlePhotos(article: string, limit = 3, skip: stri
       failed.push(m.driveId);
     }
   }
+  if (duplicates.length) {
+    const { excludeDriveIds } = await import("@/lib/photo-dedupe");
+    await excludeDriveIds(article, duplicates);
+  }
   // Si ya tiene foto y precio, queda publicado (salvo que alguien lo haya ocultado a mano después)
   if (imported > 0 && existing.length === 0 && product.price > 0) {
     await db.update(products).set({ visible: true }).where(and(eq(products.id, product.id)));
   }
-  return { imported, remaining: Math.max(0, pending.length - imported - errors.length), errors, failed };
+  return { imported, remaining: Math.max(0, pending.length - imported - errors.length - duplicates.length), errors, failed: [...failed, ...duplicates] };
 }
 
 /** Looks (fotos "SET CON …" con dos o más artículos cargados) para elegir el bloque "Comprá el look". */
@@ -186,7 +219,8 @@ export async function applyDrivePhoto(target: "hero" | "hero2" | "look", driveId
  * admin se respeta hasta que lleguen fotos nuevas.
  */
 export async function syncPhotoOrder(): Promise<number> {
-  const version = createHash("sha256").update(JSON.stringify(PHOTO_MATCHES)).digest("hex").slice(0, 16);
+  const allMatches = await loadPhotoMatches();
+  const version = createHash("sha256").update(JSON.stringify(allMatches)).digest("hex").slice(0, 16);
   const done = await db.query.settings.findFirst({ where: eq(settings.key, "orden-fotos") });
   if ((done?.value as { version?: string } | undefined)?.version === version) return 0;
   const rows = await db
@@ -196,9 +230,10 @@ export async function syncPhotoOrder(): Promise<number> {
     .where(sql`${productImages.driveFileId} is not null`);
   const changes: [number, number][] = [];
   for (const r of rows) {
-    const list = r.article ? PHOTO_MATCHES[r.article] : undefined;
+    const list = r.article ? allMatches[r.article] : undefined;
     const index = list ? list.findIndex((m) => m.driveId === r.driveFileId) : -1;
-    if (index >= 0 && index !== r.sortOrder) changes.push([r.id, index]);
+    const target = index >= 0 ? index : r.sortOrder >= 1000 ? r.sortOrder : 1000 + r.sortOrder;
+    if (target !== r.sortOrder) changes.push([r.id, target]);
   }
   for (let i = 0; i < changes.length; i += 300) {
     const part = changes.slice(i, i + 300);
