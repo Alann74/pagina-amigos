@@ -20,7 +20,9 @@ for (const line of manifest) {
   const key = title.trim().toLowerCase();
   if (!byTitle.has(key) || folder === "TODAS") byTitle.set(key, { id, title: title.trim(), folder });
 }
-const files = [...byTitle.values()];
+// Fotos sacadas a pedido (no se vuelven a importar)
+const EXCLUDED = new Set(["__8-39886_limpia.jpg"].map((t) => t.toLowerCase()));
+const files = [...byTitle.values()].filter((f) => !EXCLUDED.has(f.title.toLowerCase()));
 
 function classify(title) {
   const base = title.replace(/\.(jpe?g|png|webp)$/i, "");
@@ -57,7 +59,8 @@ function classify(title) {
   return { kind, order, color, back, primary: primaryCodes.filter((c) => products.has(c)), known, unknown };
 }
 
-const KIND_RANK = { catalogo: 0, campana: 1, look: 2 };
+// Primero la modelo (campaña y conjuntos), después la prenda sola (catálogo)
+const KIND_RANK = { campana: 0, look: 1, catalogo: 2 };
 const perProduct = new Map();
 const orphanFiles = [];
 let orphanCount = 0;
@@ -83,7 +86,7 @@ for (const f of files) {
 const result = {};
 for (const [code, list] of perProduct) {
   list.sort((a, b) => {
-    // catálogo sin color (toma general) → catálogo con color (frente, después espalda) → campaña → looks
+    // campaña con modelo → conjuntos ("SET CON") → catálogo sin color → catálogo por color (frente, después espalda)
     const ra = KIND_RANK[a.kind] * 10 + (a.kind === "catalogo" && a.color ? 1 : 0) + (a.isPrimary ? 0 : 5);
     const rb = KIND_RANK[b.kind] * 10 + (b.kind === "catalogo" && b.color ? 1 : 0) + (b.isPrimary ? 0 : 5);
     if (ra !== rb) return ra - rb;

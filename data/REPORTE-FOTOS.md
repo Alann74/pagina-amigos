@@ -2,7 +2,7 @@
 
 Generado por `scripts/match-photos.mjs`.
 
-- Fotos únicas en Drive (TODAS): **851**
+- Fotos únicas en Drive (TODAS): **850**
 - Artículos del POS: **180** (+2 sin número de artículo)
 - Artículos con foto: **178**
 - Artículos sin foto: **4**

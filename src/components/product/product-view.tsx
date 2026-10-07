@@ -7,6 +7,7 @@ import { Drawer } from "@/components/layout/drawer";
 import { FavoriteButton } from "@/components/product/favorite-button";
 import { Gallery } from "@/components/product/gallery";
 import { useShopConfig } from "@/components/shop-config";
+import { useWholesale } from "@/components/wholesale";
 import { trackContactWhatsapp, trackViewProduct } from "@/lib/analytics";
 import { cashPrice, displayColor, displaySize, formatPrice } from "@/lib/format";
 import { Markdown } from "@/lib/markdown";
@@ -39,7 +40,10 @@ export function ProductView({
   sizeGuide: string | null;
   info: InfoBlock[];
 }) {
-  const { whatsappNumber, cashDiscountPercent, installments, siteUrl } = useShopConfig();
+  const { whatsappNumber, cashDiscountPercent: retailCashPercent, installments: retailInstallments, siteUrl } = useShopConfig();
+  const wholesale = useWholesale();
+  const cashDiscountPercent = wholesale.active ? (wholesale.session?.cashDiscountPercent ?? 0) : retailCashPercent;
+  const installments = wholesale.active ? 1 : retailInstallments;
   const addToCart = useAddToCart();
   const pushRecent = useRecent((s) => s.push);
   const sizesRef = useRef<HTMLFieldSetElement>(null);
@@ -64,7 +68,7 @@ export function ProductView({
   const selected = size ? variantFor(size, color) : undefined;
   const sizeAvailable = (s: string) => product.variants.some((v) => v.size === s && (hasColors ? v.color === color : true) && v.available);
   const colorAvailable = (c: string) => product.variants.some((v) => v.color === c && v.available);
-  const price = selected?.price ?? product.price;
+  const price = wholesale.priceFor(product.id, selected?.price ?? product.price);
   const outOfStock = selected ? !selected.available : product.soldOut;
 
   const images = useMemo(() => {
@@ -73,7 +77,8 @@ export function ProductView({
     if (forColor.length === 0) return product.images;
     const general = product.images.filter((i) => !i.color);
     const rest = product.images.filter((i) => i.color && i.color !== color);
-    return [...general.slice(0, 1), ...forColor, ...general.slice(1), ...rest];
+    // Primero las fotos con modelo (generales), después la prenda en el color elegido
+    return [...general, ...forColor, ...rest];
   }, [color, product.images]);
 
   const productUrl = `${siteUrl}/producto/${product.slug}`;
@@ -149,19 +154,22 @@ export function ProductView({
           {product.articleCode ? <p className="mt-1 text-[11px] text-mute">Art. {product.articleCode}</p> : null}
 
           <div className="mt-4 space-y-1">
-            <p className="text-[17px] tabular-nums" data-testid="product-price">
+            <p className="text-[17px] tabular-nums" data-testid="product-price" data-price>
               {formatPrice(price)}
-              {product.compareAtPrice && product.compareAtPrice > price ? (
+              {!wholesale.active && product.compareAtPrice && product.compareAtPrice > price ? (
                 <span className="ml-2 text-[13px] text-mute line-through">{formatPrice(product.compareAtPrice)}</span>
               ) : null}
             </p>
+            {wholesale.active ? (
+              <p className="label text-mute">{wholesale.hasWholesalePrice(product.id) ? "Precio por mayor" : "Precio de tienda"}</p>
+            ) : null}
             {cashDiscountPercent > 0 ? (
-              <p className="text-[13px] tabular-nums">
+              <p className="text-[13px] tabular-nums" data-price>
                 <strong className="font-medium">{formatPrice(cashPrice(price, cashDiscountPercent))}</strong> con {cashDiscountPercent}% OFF efectivo/transferencia
               </p>
             ) : null}
             {installments > 1 ? (
-              <p className="text-[12px] text-mute tabular-nums">
+              <p className="text-[12px] text-mute tabular-nums" data-price>
                 o {installments} cuotas sin interés de {formatPrice(Math.ceil(price / installments))}
               </p>
             ) : null}
@@ -300,7 +308,7 @@ export function ProductView({
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-paper px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 lg:hidden">
           <button type="button" onClick={handleAdd} className="btn btn-primary w-full" data-testid="add-to-cart">
             {ctaLabel}
-            {!added ? <span className="font-normal tabular-nums opacity-80">· {formatPrice(price * quantity)}</span> : null}
+            {!added ? <span className="font-normal tabular-nums opacity-80" data-price>· {formatPrice(price * quantity)}</span> : null}
           </button>
         </div>
       ) : null}
