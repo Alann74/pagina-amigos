@@ -6,7 +6,9 @@ import { importPendingPhotos, logImport, migrateCampaignToDb, migrateImagesToDb,
 import { db } from "../src/db";
 import { settings } from "../src/db/schema";
 import { listPublicFolder } from "../src/lib/drive-folder";
+import { liveCheck } from "../src/lib/live-check";
 import { checkAllProductPhotos } from "../src/lib/photo-check";
+import { backfillHashes, duplicateReport } from "../src/lib/photo-dedupe";
 
 const BUDGET = Number(process.env.PHOTO_IMPORT_BUDGET_MS ?? 14 * 60_000);
 
@@ -31,6 +33,9 @@ async function main() {
     console.log(`[fotos] Importadas ${r.imported} fotos nuevas${r.errors.length ? ` (${r.errors.length} con error)` : ""}${r.pending ? " · quedan pendientes" : ""}`);
   }
   console.log(`[fotos] Orden: ${await syncPhotoOrder()} fotos reordenadas`);
+  console.log(`[fotos] Huellas calculadas: ${await backfillHashes()}`);
+  const dup = await duplicateReport();
+  console.log(`[fotos] Posibles repetidas: ${dup.mismoProducto.length} pares en el mismo producto, ${dup.otrosProductos.length} entre productos distintos`);
   // Prueba: ¿se puede listar una carpeta pública de Drive desde el servidor? (para encontrar fotos nuevas solas)
   const sondeo: Record<string, unknown> = { fecha: new Date().toISOString() };
   for (const [nombre, id] of [["CAPSULAS FOTOS SOLAS", "1DAWlthDwVh0aKYfG8S2TitWdGhDPHdhI"], ["TODAS", "11Fhw_weCSbFMdp8dHj67DlkcpYR3NPJg"]]) {
@@ -43,6 +48,12 @@ async function main() {
   }
   await db.insert(settings).values({ key: "drive-sondeo", value: sondeo }).onConflictDoUpdate({ target: settings.key, set: { value: sondeo } });
   console.log("[fotos] Sondeo Drive:", JSON.stringify(sondeo).slice(0, 300));
+  // La tienda publicada (la versión anterior a este deploy), vista desde afuera
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (host) {
+    const live = await liveCheck(`https://${host}`).catch((e) => ({ error: String(e) }));
+    console.log("[fotos] En vivo:", JSON.stringify((live as { fotos?: unknown }).fotos ?? live).slice(0, 300));
+  }
   const check = await checkAllProductPhotos();
   console.log(`[fotos] Revisión: ${check.productosPublicados} productos, ${check.fotos} fotos, ${check.rotas.length} con problemas, ${check.productosSinFoto.length} sin foto`);
 }

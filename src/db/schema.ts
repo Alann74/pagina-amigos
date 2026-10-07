@@ -235,6 +235,8 @@ export const media = pgTable("media", {
   width: integer("width").notNull(),
   height: integer("height").notNull(),
   bytes: integer("bytes").notNull(),
+  // Huella del contenido (dHash 16x16 en hex): dos fotos iguales dan huellas casi idénticas aunque cambie el nombre
+  hash: text("hash"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
