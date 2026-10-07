@@ -20,22 +20,27 @@ export async function imageRatio(input: Buffer): Promise<number | null> {
  */
 export async function processProductImage(input: Buffer, basePath: string, opts: { fit?: "contain" | "cover" } = {}): Promise<ProcessedImage> {
   const fit = opts.fit ?? "contain";
-  const urls: string[] = [];
-  let mainUrl = "";
-  for (const width of PRODUCT_WIDTHS) {
-    const height = Math.round((width * 4) / 3);
-    const out = await sharp(input, { failOn: "none" })
-      .rotate()
-      .flatten({ background: "#ffffff" })
-      .resize(width, height, { fit, position: fit === "cover" ? "top" : "centre", background: "#ffffff", withoutEnlargement: false })
-      .webp({ quality: width >= 1200 ? 80 : 78, effort: 4 })
-      .toBuffer();
-    const url = await putFile(`${basePath}-w${width}.webp`, out, "image/webp");
-    urls.push(url);
-    if (width === 1200) mainUrl = url;
-  }
-  urls.push(await processShareImage(input, basePath, fit));
-  return { url: mainUrl, width: 1200, height: 1600, urls };
+  const position = fit === "cover" ? "top" : "centre";
+  // La foto original (a veces PNG de muchos MB) se decodifica una sola vez: de esta base salen todos los tamaños
+  const { data, info } = await sharp(input, { failOn: "none" })
+    .rotate()
+    .flatten({ background: "#ffffff" })
+    .resize(1200, 1600, { fit, position, background: "#ffffff", withoutEnlargement: false })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const base = () => sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } });
+  const outputs = await Promise.all(
+    PRODUCT_WIDTHS.map(async (width) => {
+      const pipeline = width === 1200 ? base() : base().resize(width, Math.round((width * 4) / 3));
+      const out = await pipeline.webp({ quality: width >= 1200 ? 80 : 78, effort: 4 }).toBuffer();
+      return { path: `${basePath}-w${width}.webp`, out, type: "image/webp" };
+    }),
+  );
+  // JPG para compartir (Open Graph / feed de Meta)
+  const share = await base().resize(1200, 1500, { fit, position, background: "#ffffff" }).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+  outputs.push({ path: `${basePath}-share.jpg`, out: share, type: "image/jpeg" });
+  const urls = await Promise.all(outputs.map((o) => putFile(o.path, o.out, o.type)));
+  return { url: urls[PRODUCT_WIDTHS.indexOf(1200)], width: 1200, height: 1600, urls };
 }
 
 /** Campaña / hero / look: se respeta la proporción original, lado mayor hasta 2400. */
