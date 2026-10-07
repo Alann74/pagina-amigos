@@ -33,3 +33,18 @@ test("CSV con punto y coma y sin encabezado", () => {
     { code: "39602", name: "Remera Morgan", price: 22000 },
   ]);
 });
+
+test("lista de productos nuevos con encabezados y deducción de categoría y talles", async () => {
+  const { parseProductTable, prettyProductName } = await import("../../src/lib/product-import");
+  const rows = parseProductTable([
+    ["ARTICULO", "NOMBRE", "PRECIO MINORISTA", "COLORES"],
+    ["40001", "REMERA LUNA", "$29.900", "NEGRO|BLANCO"],
+    ["40002", "Wide Leg Sol", "89000", ""],
+    ["", "sin código", "1000", ""],
+  ]);
+  assert.equal(rows.length, 2);
+  assert.deepEqual(rows[0], { code: "40001", name: "REMERA LUNA", price: 29900, category: "Remeras", colors: ["NEGRO", "BLANCO"], sizes: ["S", "M", "L", "XL"] });
+  assert.equal(rows[1].category, "Jeans");
+  assert.deepEqual(rows[1].sizes, ["24", "26", "28", "30", "32", "34", "36"]);
+  assert.equal(prettyProductName("PANTALON CITRUS"), "Pantalón Citrus");
+});

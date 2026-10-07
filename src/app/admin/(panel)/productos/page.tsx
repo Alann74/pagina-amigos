@@ -12,6 +12,9 @@ export default function ProductsPage() {
   return (
     <>
       <AdminTitle title="Productos" subtitle="Tocá un producto para editar datos, fotos y stock">
+        <Link href="/admin/productos/importar" className="btn btn-secondary">
+          Importar lista
+        </Link>
         <Link href="/admin/productos/nuevo" className="btn btn-primary">
           Nuevo producto
         </Link>

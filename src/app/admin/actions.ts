@@ -613,3 +613,82 @@ export async function runPhotoCheck(): Promise<ActionResult> {
     return fail(e);
   }
 }
+
+// ---------------------------------------------------------------- productos nuevos desde la lista de precios
+
+const newProductRowSchema = z.object({
+  code: z.string().regex(/^\d{5}$/),
+  name: z.string().trim().min(2).max(120),
+  price: z.number().int().min(1).max(100_000_000),
+  category: z.string().trim().max(60).nullable(),
+  colors: z.array(z.string().trim().min(1).max(40)).max(30),
+  sizes: z.array(z.string().trim().min(1).max(10)).min(1).max(20),
+});
+
+export type NewProductsPreview = {
+  nuevos: { code: string; name: string; price: number; category: string | null; colors: string[]; sizes: string[] }[];
+  precios: { id: number; code: string; name: string; from: number; to: number }[];
+  iguales: number;
+};
+
+export async function previewNewProducts(input: z.input<typeof newProductRowSchema>[]): Promise<{ ok: true; preview: NewProductsPreview } | { ok: false; error: string }> {
+  try {
+    await requireAdmin();
+    const rows = z.array(newProductRowSchema).max(2000).parse(input);
+    const { prettyProductName } = await import("@/lib/product-import");
+    const existing = await db.select({ id: products.id, code: products.articleCode, name: products.name, price: products.price }).from(products);
+    const byCode = new Map(existing.filter((p) => p.code).map((p) => [p.code!, p]));
+    const preview: NewProductsPreview = { nuevos: [], precios: [], iguales: 0 };
+    const seen = new Set<string>();
+    for (const r of rows) {
+      if (seen.has(r.code)) continue;
+      seen.add(r.code);
+      const p = byCode.get(r.code);
+      if (!p) preview.nuevos.push({ ...r, name: prettyProductName(r.name) });
+      else if (p.price !== r.price) preview.precios.push({ id: p.id, code: r.code, name: p.name, from: p.price, to: r.price });
+      else preview.iguales++;
+    }
+    return { ok: true, preview };
+  } catch (e) {
+    const r = fail(e);
+    return r.ok ? { ok: false, error: "Error" } : r;
+  }
+}
+
+export async function applyNewProducts(input: { nuevos: NewProductsPreview["nuevos"]; precios: { id: number; to: number }[] }): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const nuevos = z.array(newProductRowSchema).max(2000).parse(input.nuevos);
+    const precios = z.array(z.object({ id: z.number().int(), to: z.number().int().min(1).max(100_000_000) })).max(2000).parse(input.precios);
+    const { defaultSizes } = await import("@/lib/product-import");
+    let created = 0;
+    for (const r of nuevos) {
+      // Categoría (se crea si no existe) y colores
+      let categoryId: number | null = null;
+      if (r.category) {
+        await db.insert(categories).values({ slug: slugify(r.category), name: r.category, sizeGuide: r.category === "Jeans" ? "jeans" : ["Carteras", "Accesorios"].includes(r.category) ? "unico" : "letras" }).onConflictDoNothing();
+        categoryId = (await db.query.categories.findFirst({ where: eq(categories.slug, slugify(r.category)) }))?.id ?? null;
+      }
+      if (r.colors.length) await db.insert(colors).values(r.colors.map((c) => ({ name: c, slug: slugify(c) }))).onConflictDoNothing();
+      const colorRows = r.colors.length ? await db.select({ id: colors.id, name: colors.name }).from(colors).where(inArray(colors.name, r.colors)) : [];
+      const [p] = await db
+        .insert(products)
+        .values({ slug: `${slugify(r.name)}-${r.code}`, articleCode: r.code, name: r.name, price: r.price, categoryId, visible: false, publishedAt: new Date() })
+        .onConflictDoNothing()
+        .returning({ id: products.id });
+      if (!p) continue;
+      const sizes = r.sizes.length ? r.sizes : defaultSizes(r.category);
+      const combos = colorRows.length ? colorRows.flatMap((c) => sizes.map((s) => ({ c, s }))) : sizes.map((s) => ({ c: null, s }));
+      await db
+        .insert(variants)
+        .values(combos.map(({ c, s }) => ({ productId: p.id, colorId: c?.id ?? null, size: s, sizeOrder: sizeOrder(s), sku: c ? `${r.code}-${c.name}-${s}` : `${r.code}-${s}`, stock: null, active: true })))
+        .onConflictDoNothing();
+      created++;
+    }
+    for (const c of precios) await db.update(products).set({ price: c.to }).where(eq(products.id, c.id));
+    if (created || precios.length) catalogChanged();
+    return { ok: true, message: `${created} productos nuevos (quedan ocultos hasta tener foto)${precios.length ? ` · ${precios.length} precios actualizados` : ""}` };
+  } catch (e) {
+    return fail(e);
+  }
+}
