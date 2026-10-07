@@ -523,3 +523,79 @@ export async function saveSettings(key: "site" | "pages" | "look", value: unknow
     return fail(e);
   }
 }
+
+// ---------------------------------------------------------------- mayoristas
+
+const wholesaleSchema = z.object({
+  enabled: z.boolean(),
+  code: z
+    .string()
+    .trim()
+    .max(40)
+    .transform((v) => v.toUpperCase().replace(/\s+/g, "")),
+  minAmount: z.number().int().min(0).max(100_000_000),
+  minUnits: z.number().int().min(0).max(10_000),
+  cashDiscountPercent: z.number().int().min(0).max(90),
+  note: z.string().trim().max(400),
+});
+
+export async function saveWholesaleSettings(input: z.input<typeof wholesaleSchema>): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const value = wholesaleSchema.parse(input);
+    if (value.enabled && value.code.length < 4) return { ok: false, error: "El código tiene que tener al menos 4 caracteres" };
+    await db.insert(settings).values({ key: "wholesale", value }).onConflictDoUpdate({ target: settings.key, set: { value } });
+    return { ok: true, message: value.enabled ? "Acceso mayorista activo" : "Guardado (acceso desactivado)" };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function saveWholesalePrices(changes: { id: number; wholesalePrice: number | null }[]): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const parsed = z.array(z.object({ id: z.number().int(), wholesalePrice: z.number().int().min(1).max(100_000_000).nullable() })).max(2000).parse(changes);
+    for (const c of parsed) await db.update(products).set({ wholesalePrice: c.wholesalePrice }).where(eq(products.id, c.id));
+    // Los precios por mayor no se guardan en caché (se piden en vivo con el acceso), no hace falta refrescar la tienda
+    return { ok: true, message: `${parsed.length} precios por mayor guardados` };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Baja una planilla de Google Sheets como CSV (tiene que estar compartida con "cualquiera con el enlace"). */
+export async function fetchSheetCsv(link: string): Promise<{ ok: true; csv: string } | { ok: false; error: string }> {
+  try {
+    await requireAdmin();
+    const id = link.match(/\/spreadsheets\/d\/([\w-]{20,})/)?.[1];
+    if (!id) return { ok: false, error: "Pegá el link de la planilla de Google Sheets" };
+    const gid = link.match(/[#&?]gid=(\d+)/)?.[1];
+    const url = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv${gid ? `&gid=${gid}` : ""}`;
+    const res = await fetch(url, { cache: "no-store", redirect: "follow", signal: AbortSignal.timeout(20_000) });
+    const type = res.headers.get("content-type") ?? "";
+    if (!res.ok || type.includes("text/html")) {
+      return { ok: false, error: "No se pudo leer la planilla. En Google Sheets: Compartir → Cualquier persona con el enlace (lector), o descargala como Excel y subila." };
+    }
+    const csv = await res.text();
+    if (csv.length > 2_000_000) return { ok: false, error: "La planilla es demasiado grande" };
+    return { ok: true, csv };
+  } catch (e) {
+    const r = fail(e);
+    return r.ok ? { ok: false, error: "Error" } : r;
+  }
+}
+
+// ---------------------------------------------------------------- mantenimiento
+
+/** Vuelve a armar ya mismo todas las páginas de la tienda (fotos, precios, textos). */
+export async function refreshStore(): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    updateTag(TAGS.catalog);
+    updateTag(TAGS.settings);
+    updateTag(TAGS.bestsellers);
+    return { ok: true, message: "Tienda actualizada: los cambios ya se ven en todos los dispositivos" };
+  } catch (e) {
+    return fail(e);
+  }
+}

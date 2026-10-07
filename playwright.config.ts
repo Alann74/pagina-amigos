@@ -20,6 +20,8 @@ export default defineConfig({
   use: {
     baseURL,
     trace: "retain-on-failure",
+    // El pop-up de bienvenida no aparece en los tests (salvo en el suyo, que limpia este estado)
+    storageState: { cookies: [], origins: [{ origin: baseURL, localStorage: [{ name: "inedita-popup", value: '{"state":"subscribed","at":0}' }] }] },
     launchOptions: executablePath ? { executablePath } : undefined,
   },
   projects: [

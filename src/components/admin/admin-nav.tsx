@@ -8,6 +8,8 @@ export const ADMIN_LINKS = [
   { href: "/admin/pedidos", label: "Pedidos" },
   { href: "/admin/productos", label: "Productos" },
   { href: "/admin/precios", label: "Precios" },
+  { href: "/admin/mayoristas", label: "Mayoristas" },
+  { href: "/admin/clientas", label: "Clientas" },
   { href: "/admin/csv", label: "CSV" },
   { href: "/admin/fotos", label: "Fotos" },
   { href: "/admin/configuracion", label: "Configuración" },

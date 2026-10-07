@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { RefreshStoreButton } from "@/components/admin/refresh-store-button";
 import { AdminLoading, AdminTitle, Section, Stat, StatusBadge } from "@/components/admin/ui";
 import { adminGate, getDashboard } from "@/lib/admin-data";
 import { isDatabaseNotReady } from "@/lib/catalog";
@@ -8,7 +9,9 @@ import { formatDate, formatOrderNumber, formatPrice } from "@/lib/format";
 export default function AdminHome() {
   return (
     <>
-      <AdminTitle title="Inicio" subtitle="Resumen del mes y accesos rápidos" />
+      <AdminTitle title="Inicio" subtitle="Resumen del mes y accesos rápidos">
+        <RefreshStoreButton />
+      </AdminTitle>
       <Suspense fallback={<AdminLoading />}>
         <Dashboard />
       </Suspense>

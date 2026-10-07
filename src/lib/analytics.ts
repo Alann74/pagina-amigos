@@ -48,3 +48,10 @@ export function trackContactWhatsapp(context: string) {
     window.gtag?.("event", "contacto_whatsapp", { context });
   } catch {}
 }
+
+export function trackWelcomeSignup(percent: number) {
+  try {
+    window.fbq?.("track", "CompleteRegistration", { content_name: "bienvenida", value: percent, currency: "ARS" });
+    window.gtag?.("event", "sign_up", { method: "popup_bienvenida" });
+  } catch {}
+}

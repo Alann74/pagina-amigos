@@ -5,14 +5,16 @@ import { Drawer } from "@/components/layout/drawer";
 import { CartLine } from "@/components/cart/cart-line";
 import { CartTotals, FreeShippingBar } from "@/components/cart/cart-totals";
 import { CompleteLook } from "@/components/cart/complete-look";
-import { cartCount, cartSubtotal, useCart } from "@/stores/cart";
+import { useCartPricing } from "@/components/wholesale";
+import { cartCount, useCart } from "@/stores/cart";
 
 export function CartDrawer() {
   const isOpen = useCart((s) => s.isOpen);
   const close = useCart((s) => s.close);
   const items = useCart((s) => s.items);
   const count = cartCount(items);
-  const subtotal = cartSubtotal(items);
+  const { subtotal: subtotalOf } = useCartPricing();
+  const subtotal = subtotalOf(items);
 
   return (
     <Drawer
@@ -23,7 +25,7 @@ export function CartDrawer() {
       footer={
         items.length > 0 ? (
           <div className="space-y-4 px-5 py-5">
-            <CartTotals subtotal={subtotal} />
+            <CartTotals subtotal={subtotal} units={count} />
             <Link href="/carrito" onClick={close} className="btn btn-primary w-full" data-testid="checkout-link">
               Finalizar pedido
             </Link>

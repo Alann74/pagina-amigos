@@ -15,6 +15,17 @@ function sign(value: string): string {
   return createHmac("sha256", secret()).update(value).digest("base64url");
 }
 
+/** Firma genérica (misma clave que la sesión del admin) para otros tokens, ej. el acceso mayorista. */
+export function signValue(purpose: string, value: string): string {
+  return sign(`${purpose}:${value}`);
+}
+
+export function safeEqual(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
 export function createSessionToken(): { token: string; maxAge: number } {
   const exp = Math.floor(Date.now() / 1000) + MAX_AGE;
   return { token: `${exp}.${sign(String(exp))}`, maxAge: MAX_AGE };

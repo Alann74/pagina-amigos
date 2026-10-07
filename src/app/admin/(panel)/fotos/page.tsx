@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { BulkUploader, type PlanEntry } from "@/components/admin/bulk-uploader";
 import { DriveImporter } from "@/components/admin/drive-importer";
+import { RefreshStoreButton } from "@/components/admin/refresh-store-button";
 import { AdminLoading, AdminTitle, Section } from "@/components/admin/ui";
 import { adminGate, getAdminProducts } from "@/lib/admin-data";
 import { getImportedDriveIds, getLookCandidates, getPhotoStatus, PHOTO_MATCHES, PHOTO_UNMATCHED } from "@/lib/drive-import";
@@ -12,7 +13,9 @@ export const metadata: Metadata = { title: "Fotos" };
 export default function PhotosPage() {
   return (
     <>
-      <AdminTitle title="Fotos" subtitle="Importación desde Drive y reporte de productos sin foto" />
+      <AdminTitle title="Fotos" subtitle="Importación desde Drive y reporte de productos sin foto">
+        <RefreshStoreButton />
+      </AdminTitle>
       <Suspense fallback={<AdminLoading />}>
         <Photos />
       </Suspense>

@@ -101,6 +101,7 @@ async function OrderDetail({ params }: { params: PageProps<"/admin/pedidos/[id]"
         <div>
           <Section title="Clienta">
             <dl>
+              {order.channel === "mayorista" ? <Row label="Tipo">Pedido mayorista (precios por mayor)</Row> : null}
               <Row label="Nombre">{order.customerName}</Row>
               <Row label="Teléfono">
                 <a href={`tel:${order.customerPhone.replace(/[^\d+]/g, "")}`} className="link-underline">
@@ -109,6 +110,7 @@ async function OrderDetail({ params }: { params: PageProps<"/admin/pedidos/[id]"
               </Row>
               <Row label="Entrega">{order.deliveryMethod === "retiro" ? "Retira en el local" : `Envío a coordinar · ${order.deliveryArea ?? ""}`}</Row>
               <Row label="Pago">{PAYMENT[order.paymentMethod]}</Row>
+              {order.promoCode ? <Row label="Bienvenida">{order.discountPercent}% OFF · código {order.promoCode}</Row> : null}
               {order.comment ? <Row label="Comentario">{order.comment}</Row> : null}
             </dl>
           </Section>

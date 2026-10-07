@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo } from "react";
 import { complementCategories, stablePick } from "@/lib/complements";
-import { formatPrice } from "@/lib/format";
+import { PriceText } from "@/components/wholesale";
 import { useSearchIndex } from "@/lib/use-search-index";
 import type { CartItem } from "@/stores/cart";
 
@@ -34,7 +34,7 @@ export function CompleteLook({ items, onNavigate }: { items: CartItem[]; onNavig
                 {p.image ? <Image src={p.image} alt={p.name} fill sizes="140px" className="object-cover" /> : null}
               </div>
               <p className="mt-2 line-clamp-2 text-[12px] leading-snug">{p.name}</p>
-              <p className="text-[12px] tabular-nums text-mute">{formatPrice(p.price)}</p>
+              <p className="text-[12px] tabular-nums text-mute"><PriceText productId={p.id} retail={p.price} /></p>
             </Link>
           </li>
         ))}

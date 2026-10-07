@@ -1,11 +1,13 @@
 "use client";
 
 import { useShopConfig } from "@/components/shop-config";
+import { useWholesale } from "@/components/wholesale";
 import { cashPrice, formatPrice } from "@/lib/format";
 
 export function FreeShippingBar({ subtotal }: { subtotal: number }) {
   const { freeShippingThreshold } = useShopConfig();
-  if (!freeShippingThreshold || freeShippingThreshold <= 0) return null;
+  const { active } = useWholesale();
+  if (active || !freeShippingThreshold || freeShippingThreshold <= 0) return null;
   const missing = Math.max(0, freeShippingThreshold - subtotal);
   const progress = Math.min(100, Math.round((subtotal / freeShippingThreshold) * 100));
   return (
@@ -26,30 +28,51 @@ export function FreeShippingBar({ subtotal }: { subtotal: number }) {
   );
 }
 
-export function CartTotals({ subtotal }: { subtotal: number }) {
+/**
+ * Totales de la bolsa. `welcomePercent`: descuento de bienvenida del pop-up (reemplaza al de efectivo si es mayor).
+ * En modo mayorista: sin cuotas, con el descuento propio de mayoristas y el aviso de compra mínima.
+ */
+export function CartTotals({ subtotal, units = 0, welcomePercent = 0 }: { subtotal: number; units?: number; welcomePercent?: number }) {
   const { cashDiscountPercent, installments } = useShopConfig();
-  const cash = cashPrice(subtotal, cashDiscountPercent);
+  const { active, session } = useWholesale();
+  const welcome = !active && welcomePercent > cashDiscountPercent;
+  const percent = active ? (session?.cashDiscountPercent ?? 0) : Math.max(cashDiscountPercent, welcomePercent);
+  const cash = cashPrice(subtotal, percent);
+  const minAmount = active ? (session?.minAmount ?? 0) : 0;
+  const minUnits = active ? (session?.minUnits ?? 0) : 0;
   return (
     <dl className="space-y-1.5 text-[13px]">
       <div className="flex justify-between">
-        <dt>Subtotal</dt>
-        <dd className="tabular-nums" data-testid="cart-subtotal">
+        <dt>{active ? "Subtotal mayorista" : "Subtotal"}</dt>
+        <dd className="tabular-nums" data-testid="cart-subtotal" data-price>
           {formatPrice(subtotal)}
         </dd>
       </div>
-      {cashDiscountPercent > 0 ? (
-        <div className="flex justify-between font-medium">
-          <dt>Con {cashDiscountPercent}% OFF efectivo / transferencia</dt>
-          <dd className="tabular-nums" data-testid="cart-cash-total">
+      {percent > 0 ? (
+        <div className="flex justify-between gap-3 font-medium">
+          <dt>{welcome ? `Con tu ${percent}% OFF de bienvenida (efectivo / transferencia)` : `Con ${percent}% OFF efectivo / transferencia`}</dt>
+          <dd className="tabular-nums" data-testid="cart-cash-total" data-price>
             {formatPrice(cash)}
           </dd>
         </div>
       ) : null}
-      {installments > 1 ? (
+      {!active && installments > 1 ? (
         <div className="flex justify-between text-mute">
           <dt>o {installments} cuotas sin interés de</dt>
-          <dd className="tabular-nums">{formatPrice(Math.ceil(subtotal / installments))}</dd>
+          <dd className="tabular-nums" data-price>
+            {formatPrice(Math.ceil(subtotal / installments))}
+          </dd>
         </div>
+      ) : null}
+      {minAmount > 0 && subtotal < minAmount ? (
+        <p className="pt-1 text-[12px]" data-testid="wholesale-min">
+          Compra mínima mayorista: {formatPrice(minAmount)} (te faltan {formatPrice(minAmount - subtotal)})
+        </p>
+      ) : null}
+      {minUnits > 0 && units < minUnits ? (
+        <p className="pt-1 text-[12px]">
+          Mínimo {minUnits} prendas por pedido (llevás {units})
+        </p>
       ) : null}
     </dl>
   );

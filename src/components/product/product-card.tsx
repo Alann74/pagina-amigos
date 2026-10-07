@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { FavoriteButton } from "@/components/product/favorite-button";
 import { useShopConfig } from "@/components/shop-config";
+import { useWholesale } from "@/components/wholesale";
 import { cashPrice, formatPrice } from "@/lib/format";
 import type { SearchEntry } from "@/lib/search";
 
@@ -14,11 +15,14 @@ const BADGE_LABEL: Record<string, string> = {
 };
 
 export function ProductCard({ product, priority = false, sizes = "(min-width: 1024px) 25vw, 50vw" }: { product: SearchEntry; priority?: boolean; sizes?: string }) {
-  const { cashDiscountPercent } = useShopConfig();
+  const { cashDiscountPercent: retailCashPercent } = useShopConfig();
+  const wholesale = useWholesale();
+  const price = wholesale.priceFor(product.id, product.price);
+  const cashDiscountPercent = wholesale.active ? (wholesale.session?.cashDiscountPercent ?? 0) : retailCashPercent;
   const badge = product.badge ? BADGE_LABEL[product.badge] : null;
   return (
     <article className="group relative" data-testid="product-card">
-      <Link href={`/producto/${product.slug}`} className="block" aria-label={`${product.name}, ${formatPrice(product.price)}`}>
+      <Link href={`/producto/${product.slug}`} className="block" aria-label={`${product.name}, ${formatPrice(price)}`}>
         <div className="relative aspect-[3/4] overflow-hidden bg-soft">
           {product.image ? (
             <>
@@ -59,12 +63,17 @@ export function ProductCard({ product, priority = false, sizes = "(min-width: 10
         <div className="mt-2.5 px-0.5 sm:mt-3">
           <h3 className="text-[12.5px] leading-snug sm:text-[13px]">{product.name}</h3>
           <p className="mt-0.5 flex items-baseline justify-between gap-2 text-[12.5px] tabular-nums sm:text-[13px]">
-            <span>{formatPrice(product.price)}</span>
+            <span data-price>{formatPrice(price)}</span>
             {product.colors.length > 1 ? <span className="shrink-0 text-[11.5px] text-mute">{product.colors.length} colores</span> : null}
           </p>
+          {wholesale.active ? (
+            <p className="mt-1 text-[12px] leading-snug text-mute">{wholesale.hasWholesalePrice(product.id) ? "Precio por mayor" : "Precio de tienda"}</p>
+          ) : null}
           {cashDiscountPercent > 0 ? (
             <p className="mt-1 text-[12px] leading-snug text-mute tabular-nums">
-              <span className="font-medium text-ink">{formatPrice(cashPrice(product.price, cashDiscountPercent))}</span> con {cashDiscountPercent}% OFF efectivo/transferencia
+              <span className="font-medium text-ink" data-price>
+                {formatPrice(cashPrice(price, cashDiscountPercent))}
+              </span> con {cashDiscountPercent}% OFF efectivo/transferencia
             </p>
           ) : null}
         </div>

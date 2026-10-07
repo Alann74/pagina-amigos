@@ -2,16 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CartLine } from "@/components/cart/cart-line";
 import { CartTotals, FreeShippingBar } from "@/components/cart/cart-totals";
 import { CompleteLook } from "@/components/cart/complete-look";
 import { WhatsAppIcon } from "@/components/icons";
 import { useShopConfig } from "@/components/shop-config";
+import { useCartPricing, useWholesale } from "@/components/wholesale";
 import { trackWhatsappOrder } from "@/lib/analytics";
 import { readAttribution } from "@/lib/attribution";
 import { useHydrated } from "@/lib/use-hydrated";
-import { cartSubtotal, useCart } from "@/stores/cart";
+import { cartCount, useCart } from "@/stores/cart";
+import { forgetWelcome, readWelcome, saveWelcome, type WelcomeCode } from "@/lib/welcome-client";
 
 type Form = {
   customerName: string;
@@ -33,7 +35,14 @@ export function Checkout() {
   const router = useRouter();
   const items = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
-  const { storeAddressShort, cashDiscountPercent, installments } = useShopConfig();
+  const { storeAddressShort, cashDiscountPercent: retailCashPercent, installments } = useShopConfig();
+  const wholesale = useWholesale();
+  const pricing = useCartPricing();
+  const cashDiscountPercent = wholesale.active ? (wholesale.session?.cashDiscountPercent ?? 0) : retailCashPercent;
+  // Código de bienvenida del pop-up (guardado en este navegador) o escrito a mano
+  const [welcome, setWelcome] = useState<WelcomeCode | null>(() => (typeof window === "undefined" ? null : readWelcome()));
+  const [codeInput, setCodeInput] = useState("");
+  const [codeMessage, setCodeMessage] = useState<string | null>(null);
   // Los datos de la última compra se recuerdan en este navegador (el formulario solo se muestra ya hidratado)
   const [form, setForm] = useState<Form>(() => {
     const base: Form = { customerName: "", customerPhone: "", deliveryMethod: "retiro", deliveryArea: "", paymentMethod: "transferencia", comment: "" };
@@ -47,6 +56,44 @@ export function Checkout() {
   });
   const [error, setError] = useState<{ message: string; field?: string } | null>(null);
   const [sending, setSending] = useState(false);
+
+  // El código guardado se confirma con el servidor (puede haberse usado en otro pedido)
+  const storedCode = welcome?.code ?? null;
+  useEffect(() => {
+    if (!storedCode) return;
+    let cancelled = false;
+    fetch(`/api/bienvenida?codigo=${encodeURIComponent(storedCode)}`)
+      .then((r) => r.json())
+      .then((d: { valid: boolean; code?: string; percent?: number }) => {
+        if (cancelled) return;
+        if (d.valid && d.code && d.percent) setWelcome({ code: d.code, percent: d.percent });
+        else {
+          forgetWelcome();
+          setWelcome(null);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [storedCode]);
+
+  const applyCode = async () => {
+    const code = codeInput.trim();
+    if (!code) return;
+    setCodeMessage(null);
+    try {
+      const d = (await (await fetch(`/api/bienvenida?codigo=${encodeURIComponent(code)}`)).json()) as { valid: boolean; code?: string; percent?: number };
+      if (d.valid && d.code && d.percent) {
+        const next = { code: d.code, percent: d.percent };
+        saveWelcome(next);
+        setWelcome(next);
+        setCodeInput("");
+      } else setCodeMessage("Ese código no es válido o ya se usó.");
+    } catch {
+      setCodeMessage("No pudimos validar el código. Probá de nuevo.");
+    }
+  };
 
   const set = <K extends keyof Form>(key: K, value: Form[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -69,7 +116,9 @@ export function Checkout() {
     );
   }
 
-  const subtotal = cartSubtotal(items);
+  const subtotal = pricing.subtotal(items);
+  const units = cartCount(items);
+  const welcomePercent = !wholesale.active && welcome && welcome.percent > cashDiscountPercent ? welcome.percent : 0;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +145,7 @@ export function Checkout() {
           deliveryArea: form.deliveryMethod === "envio" ? form.deliveryArea : null,
           paymentMethod: form.paymentMethod,
           comment: form.comment,
+          promoCode: wholesale.active ? null : (welcome?.code ?? null),
           attribution: attribution
             ? {
                 utmSource: attribution.utmSource,
@@ -120,6 +170,7 @@ export function Checkout() {
       }
       try {
         localStorage.setItem(FORM_KEY, JSON.stringify({ customerName: form.customerName, customerPhone: form.customerPhone, deliveryArea: form.deliveryArea }));
+        if (data.welcomeApplied) forgetWelcome();
         sessionStorage.setItem(`inedita-order-${data.token}`, JSON.stringify({ message: data.message, whatsappUrl: data.whatsappUrl }));
       } catch {}
       trackWhatsappOrder(data.label, form.paymentMethod === "tarjeta" ? data.subtotal : data.cashTotal, data.items);
@@ -154,7 +205,7 @@ export function Checkout() {
           ))}
         </ul>
         <div className="mt-6 lg:hidden">
-          <CartTotals subtotal={subtotal} />
+          <CartTotals subtotal={subtotal} units={units} welcomePercent={welcomePercent} />
         </div>
         <div className="-mx-5 mt-6 hidden lg:block">
           <CompleteLook items={items} />
@@ -165,7 +216,9 @@ export function Checkout() {
         <h2 id="checkout-title" className="text-[13px] font-medium uppercase tracking-[0.24em]">
           Tus datos
         </h2>
-        <p className="mt-2 text-[13px] text-mute">Te llega el pedido armado a nuestro WhatsApp y coordinamos pago y entrega.</p>
+        <p className="mt-2 text-[13px] text-mute">
+          {wholesale.active ? (wholesale.session?.note ?? "Pedido mayorista.") : "Te llega el pedido armado a nuestro WhatsApp y coordinamos pago y entrega."}
+        </p>
         <form className="mt-6 space-y-6" onSubmit={submit} noValidate data-testid="checkout-form">
           <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
           <div>
@@ -259,12 +312,45 @@ export function Checkout() {
               ))}
             </div>
             <p className="mt-2 text-[12px] text-mute">
-              {form.paymentMethod === "tarjeta"
-                ? `Hasta ${installments} cuotas sin interés. Se coordina al confirmar el pedido.`
-                : `${cashDiscountPercent}% OFF pagando en efectivo o transferencia.`}{" "}
+              {wholesale.active
+                ? cashDiscountPercent > 0 && form.paymentMethod !== "tarjeta"
+                  ? `${cashDiscountPercent}% OFF pagando en efectivo o transferencia.`
+                  : "Precios por mayor."
+                : form.paymentMethod === "tarjeta"
+                  ? `Hasta ${installments} cuotas sin interés. Se coordina al confirmar el pedido.`
+                  : welcomePercent
+                    ? `${welcomePercent}% OFF de bienvenida pagando en efectivo o transferencia.`
+                    : cashDiscountPercent > 0
+                      ? `${cashDiscountPercent}% OFF pagando en efectivo o transferencia.`
+                      : ""}{" "}
               No se cobra nada en la web.
             </p>
           </fieldset>
+          {!wholesale.active ? (
+            welcome ? (
+              <p className="border border-line p-3 text-[12px] leading-relaxed" data-testid="welcome-applied">
+                Código <strong className="font-medium">{welcome.code}</strong>: {welcome.percent}% OFF en esta compra pagando en efectivo o transferencia.
+              </p>
+            ) : (
+              <details className="text-[12px]">
+                <summary className="cursor-pointer text-mute underline underline-offset-4">¿Tenés un código de descuento?</summary>
+                <div className="mt-3 flex gap-2">
+                  <input
+                    className="field flex-1 uppercase"
+                    value={codeInput}
+                    onChange={(e) => setCodeInput(e.target.value)}
+                    placeholder="HOLA-XXXXX"
+                    aria-label="Código de descuento"
+                    autoCapitalize="characters"
+                  />
+                  <button type="button" className="btn btn-secondary" onClick={() => void applyCode()}>
+                    Aplicar
+                  </button>
+                </div>
+                {codeMessage ? <p className="mt-2">{codeMessage}</p> : null}
+              </details>
+            )
+          ) : null}
           <div>
             <label htmlFor="comment" className="label">
               Comentario <span className="normal-case tracking-normal text-mute">(opcional)</span>
@@ -273,7 +359,7 @@ export function Checkout() {
           </div>
 
           <div className="hidden lg:block">
-            <CartTotals subtotal={subtotal} />
+            <CartTotals subtotal={subtotal} units={units} welcomePercent={welcomePercent} />
           </div>
 
           {error && !error.field ? (

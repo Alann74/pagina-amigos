@@ -92,6 +92,8 @@ async function Orders({ searchParams }: { searchParams: PageProps<"/admin/pedido
                 <Link href={`/admin/pedidos/${o.id}`} className="min-w-0 flex-1 hover:opacity-70">
                   <p className="text-[14px] font-medium tabular-nums">
                     {formatOrderNumber(o.number)} <span className="font-normal">· {o.customerName}</span>
+                    {o.channel === "mayorista" ? <span className="label ml-2 inline-block bg-ink px-1.5 py-0.5 align-middle text-[9.5px] text-paper">Mayorista</span> : null}
+                    {o.promoCode ? <span className="label ml-2 inline-block border border-ink px-1.5 py-0.5 align-middle text-[9.5px]">Bienvenida</span> : null}
                   </p>
                   <p className="mt-0.5 text-[12px] text-mute">
                     {formatDate(o.createdAt, true)} · {o.itemsCount} {o.itemsCount === 1 ? "prenda" : "prendas"} · {formatPrice(o.paymentMethod === "tarjeta" ? o.subtotal : o.cashTotal)} {PAYMENT[o.paymentMethod]} ·{" "}

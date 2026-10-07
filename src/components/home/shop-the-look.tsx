@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { displayColor, displaySize, formatPrice } from "@/lib/format";
+import { PriceText } from "@/components/wholesale";
+import { displayColor, displaySize } from "@/lib/format";
 import type { ClientProduct } from "@/lib/product-client";
 import { useAddToCart } from "@/lib/use-add-to-cart";
 
@@ -24,7 +25,7 @@ function LookItem({ product }: { product: ClientProduct }) {
           <Link href={`/producto/${product.slug}`} className="text-[13px] leading-snug">
             {product.name}
           </Link>
-          <p className="text-[13px] tabular-nums">{formatPrice(product.price)}</p>
+          <p className="text-[13px] tabular-nums"><PriceText productId={product.id} retail={product.price} /></p>
         </div>
         {product.soldOut ? (
           <p className="label text-mute">Sin stock</p>

@@ -8,6 +8,8 @@ import { WhatsAppFloat } from "@/components/layout/whatsapp-float";
 import { CartDrawer } from "@/components/cart/cart-drawer";
 import { ShopProviders } from "@/components/providers";
 import { ShopConfigProvider } from "@/components/shop-config";
+import { WelcomePopup } from "@/components/welcome-popup";
+import { WholesaleBar, WholesaleProvider } from "@/components/wholesale";
 import { getCategories, getSettings } from "@/lib/catalog";
 import { SITE_URL } from "@/lib/site";
 import { whatsappUrl } from "@/lib/whatsapp";
@@ -25,27 +27,34 @@ export default async function ShopLayout({ children }: LayoutProps<"/">) {
     freeShippingThreshold: settings.freeShippingThreshold,
     storeAddressShort: settings.address.split(",")[0] ?? settings.address,
     siteUrl: SITE_URL,
+    welcome: settings.welcome,
   };
   return (
     <ShopConfigProvider value={config}>
-      <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:bg-paper focus:px-4 focus:py-2">
-        Saltar al contenido
-      </a>
-      <AnnouncementBar />
-      <Header links={headerLinks} />
-      <main id="contenido" className="min-h-[60vh]">
-        {children}
-      </main>
-      <Footer />
-      <Suspense>
-        <ShopProviders />
-      </Suspense>
-      <MenuDrawer categories={menuCategories} whatsappHref={whatsappUrl(settings.whatsappNumber, "Hola INEDITA! Tengo una consulta.")} instagram={settings.instagram} />
-      <SearchOverlay />
-      <CartDrawer />
-      <Suspense>
-        <WhatsAppFloat />
-      </Suspense>
+      <WholesaleProvider>
+        <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:bg-paper focus:px-4 focus:py-2">
+          Saltar al contenido
+        </a>
+        <WholesaleBar />
+        <AnnouncementBar />
+        <Header links={headerLinks} />
+        <main id="contenido" className="min-h-[60vh]">
+          {children}
+        </main>
+        <Footer />
+        <Suspense>
+          <ShopProviders />
+        </Suspense>
+        <MenuDrawer categories={menuCategories} whatsappHref={whatsappUrl(settings.whatsappNumber, "Hola INEDITA! Tengo una consulta.")} instagram={settings.instagram} />
+        <SearchOverlay />
+        <CartDrawer />
+        <Suspense>
+          <WelcomePopup />
+        </Suspense>
+        <Suspense>
+          <WhatsAppFloat />
+        </Suspense>
+      </WholesaleProvider>
     </ShopConfigProvider>
   );
 }

@@ -8,7 +8,7 @@ export async function AnnouncementBar() {
   if (!enabled || !text.trim()) return null;
   const content = <AnnouncementTicker text={text} />;
   return (
-    <div className="flex h-8 items-center justify-center bg-ink text-paper" role="region" aria-label="Anuncio">
+    <div className="retail-only flex h-8 items-center justify-center bg-ink text-paper" role="region" aria-label="Anuncio">
       {href ? (
         <Link href={href} className="w-full">
           {content}

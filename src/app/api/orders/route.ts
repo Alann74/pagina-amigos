@@ -1,7 +1,10 @@
+import { cookies } from "next/headers";
 import { revalidateTag } from "next/cache";
 import { getSettings, TAGS } from "@/lib/catalog";
 import { createOrder, OrderError, orderInputSchema } from "@/lib/orders";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { wholesaleFromCookie } from "@/lib/wholesale";
+import { WHOLESALE_COOKIE } from "@/lib/wholesale-config";
 
 export async function POST(request: Request) {
   const ip = clientIp(request.headers);
@@ -20,8 +23,8 @@ export async function POST(request: Request) {
     return Response.json({ error: first?.message ?? "Revisá los datos del pedido", field: first?.path.join(".") }, { status: 400 });
   }
   try {
-    const settings = await getSettings();
-    const order = await createOrder(parsed.data, settings, request.headers.get("user-agent"));
+    const [settings, wholesale] = await Promise.all([getSettings(), wholesaleFromCookie((await cookies()).get(WHOLESALE_COOKIE)?.value)]);
+    const order = await createOrder(parsed.data, settings, request.headers.get("user-agent"), wholesale);
     revalidateTag(TAGS.bestsellers, "max");
     return Response.json(order, { status: 201 });
   } catch (error) {

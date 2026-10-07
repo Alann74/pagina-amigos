@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
+import { PriceText } from "@/components/wholesale";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CloseIcon, SearchIcon } from "@/components/icons";
-import { formatPrice } from "@/lib/format";
 import { searchEntries } from "@/lib/search";
 import { useHydrated } from "@/lib/use-hydrated";
 import { useSearchIndex } from "@/lib/use-search-index";
@@ -114,7 +114,7 @@ export function SearchOverlay() {
                             {r.image ? <Image src={r.image} alt={r.name} fill sizes="(min-width:640px) 16vw, 33vw" className="object-cover" /> : null}
                           </div>
                           <p className="mt-2 truncate text-[12px]">{r.name}</p>
-                          <p className="text-[12px] tabular-nums text-mute">{formatPrice(r.price)}</p>
+                          <p className="text-[12px] tabular-nums text-mute"><PriceText productId={r.id} retail={r.price} /></p>
                         </Link>
                       </li>
                     ))}
@@ -141,7 +141,7 @@ export function SearchOverlay() {
                         ) : null}
                       </div>
                       <p className="mt-2 text-[13px] leading-snug">{r.name}</p>
-                      <p className="text-[13px] tabular-nums text-mute">{formatPrice(r.price)}</p>
+                      <p className="text-[13px] tabular-nums text-mute"><PriceText productId={r.id} retail={r.price} /></p>
                     </Link>
                   </li>
                 ))}

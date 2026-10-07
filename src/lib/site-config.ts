@@ -20,6 +20,8 @@ export type SiteSettings = {
     cashDiscountPercent: number; // 10 → 10% OFF efectivo / transferencia
     installments: number; // 3 cuotas sin interés
   };
+  // Pop-up de bienvenida: mail + WhatsApp a cambio de un % OFF en la primera compra (efectivo/transferencia)
+  welcome: { enabled: boolean; percent: number; title: string; text: string; delaySeconds: number };
   freeShippingThreshold: number | null; // null = no se muestra la barra
   lowStockThreshold: number; // stock <= este número → ÚLTIMAS UNIDADES
   newProductDays: number; // días para la etiqueta NUEVO
@@ -49,6 +51,13 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     ctaHref: "/productos",
   },
   promo: { cashDiscountPercent: 10, installments: 3 },
+  welcome: {
+    enabled: true,
+    percent: 20,
+    title: "20% OFF en tu primera compra",
+    text: "Dejanos tu mail y tu WhatsApp y recibí un 20% OFF pagando en efectivo o transferencia.",
+    delaySeconds: 8,
+  },
   freeShippingThreshold: null,
   lowStockThreshold: 2,
   newProductDays: 15,

@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, lte, ne, sql, type SQL } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { categories, colors, orderItems, orders, productImages, products, variants, withdrawalRequests } from "@/db/schema";
+import { categories, colors, orderItems, orders, productImages, products, subscribers, variants, withdrawalRequests } from "@/db/schema";
 import { isAdmin } from "@/lib/admin-guard";
 
 // Lecturas del panel: siempre en vivo (sin caché) y solo con sesión de admin.
@@ -73,6 +73,8 @@ export async function getOrdersList(f: OrderFilters) {
       cashTotal: orders.cashTotal,
       trafficSource: orders.trafficSource,
       utmCampaign: orders.utmCampaign,
+      channel: orders.channel,
+      promoCode: orders.promoCode,
     })
     .from(orders)
     .where(where)
@@ -183,6 +185,7 @@ export type AdminProductRow = {
   categoryId: number | null;
   categoryName: string | null;
   price: number;
+  wholesalePrice: number | null;
   visible: boolean;
   featured: boolean;
   publishedAt: string;
@@ -203,6 +206,7 @@ export async function getAdminProducts(newDays = 15): Promise<AdminProductRow[]>
       categoryId: products.categoryId,
       categoryName: categories.name,
       price: products.price,
+      wholesalePrice: products.wholesalePrice,
       visible: products.visible,
       featured: products.featured,
       publishedAt: products.publishedAt,
@@ -274,4 +278,30 @@ export async function getAdminCategories() {
 
 export async function getWithdrawals() {
   return db.select().from(withdrawalRequests).orderBy(desc(withdrawalRequests.createdAt)).limit(300);
+}
+
+// ---------------------------------------------------------------- clientas (pop-up de bienvenida)
+
+export async function getSubscribers() {
+  const rows = await db
+    .select({
+      id: subscribers.id,
+      email: subscribers.email,
+      phone: subscribers.phone,
+      code: subscribers.code,
+      discountPercent: subscribers.discountPercent,
+      landingPath: subscribers.landingPath,
+      utmSource: subscribers.utmSource,
+      utmCampaign: subscribers.utmCampaign,
+      usedAt: subscribers.usedAt,
+      orderId: subscribers.orderId,
+      orderNumber: orders.number,
+      createdAt: subscribers.createdAt,
+      recent: sql<boolean>`${subscribers.createdAt} > now() - interval '7 days'`,
+    })
+    .from(subscribers)
+    .leftJoin(orders, eq(subscribers.orderId, orders.id))
+    .orderBy(desc(subscribers.createdAt))
+    .limit(5000);
+  return rows.map((r) => ({ ...r, usedAt: r.usedAt?.toISOString() ?? null, createdAt: r.createdAt.toISOString() }));
 }

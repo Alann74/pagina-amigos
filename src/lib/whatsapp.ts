@@ -21,6 +21,8 @@ export type OrderMessageInput = {
   delivery: { method: "retiro" | "envio"; area?: string | null; storeAddressShort: string };
   payment: "efectivo" | "transferencia" | "tarjeta";
   comment?: string | null;
+  wholesale?: boolean; // pedido mayorista (entró con el código)
+  welcomeCode?: string | null; // código de bienvenida aplicado
 };
 
 // Los links wa.me largos se rompen en algunos navegadores (sobre todo el de Instagram).
@@ -53,10 +55,16 @@ export function buildOrderMessage(input: OrderMessageInput): string {
       ? `${PAYMENT_LABEL.tarjeta} (${input.installments} cuotas sin interés)`
       : PAYMENT_LABEL[input.payment];
 
-  const head = `Hola INEDITA! Quiero hacer este pedido ${input.orderLabel}:`;
-  const totals = [`Subtotal: ${formatPrice(input.subtotal)}`];
+  const head = input.wholesale
+    ? `Hola INEDITA! PEDIDO MAYORISTA ${input.orderLabel}:`
+    : `Hola INEDITA! Quiero hacer este pedido ${input.orderLabel}:`;
+  const totals = [`${input.wholesale ? "Subtotal mayorista" : "Subtotal"}: ${formatPrice(input.subtotal)}`];
   if (input.discountPercent > 0) {
-    totals.push(`Total con ${input.discountPercent}% OFF efectivo/transferencia: ${formatPrice(input.cashTotal)}`);
+    totals.push(
+      input.welcomeCode
+        ? `Total con ${input.discountPercent}% OFF de bienvenida (código ${input.welcomeCode}) en efectivo/transferencia: ${formatPrice(input.cashTotal)}`
+        : `Total con ${input.discountPercent}% OFF efectivo/transferencia: ${formatPrice(input.cashTotal)}`,
+    );
   }
   const customer = [
     `Nombre: ${input.customerName.trim()}`,

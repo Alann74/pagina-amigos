@@ -95,7 +95,7 @@ export default async function HomePage() {
           <p className="label font-medium">Pedí por WhatsApp</p>
           <p className="mt-2 text-[13px] text-mute">Armá tu bolsa y enviá el pedido. Te respondemos para confirmar talle, pago y entrega.</p>
         </div>
-        <div>
+        <div className="retail-only">
           <p className="label font-medium">{settings.promo.cashDiscountPercent}% OFF efectivo o transferencia</p>
           <p className="mt-2 text-[13px] text-mute">O hasta {settings.promo.installments} cuotas sin interés con tarjeta.</p>
         </div>

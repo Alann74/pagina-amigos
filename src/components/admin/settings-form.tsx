@@ -18,6 +18,7 @@ export function SettingsForm({ initial }: { initial: SiteSettings }) {
   const setHero = (patch: Partial<SiteSettings["hero"]>) => setS((prev) => ({ ...prev, hero: { ...prev.hero, ...patch } }));
   const setAnn = (patch: Partial<SiteSettings["announcement"]>) => setS((prev) => ({ ...prev, announcement: { ...prev.announcement, ...patch } }));
   const setPromo = (patch: Partial<SiteSettings["promo"]>) => setS((prev) => ({ ...prev, promo: { ...prev.promo, ...patch } }));
+  const setWelcome = (patch: Partial<SiteSettings["welcome"]>) => setS((prev) => ({ ...prev, welcome: { ...prev.welcome, ...patch } }));
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -122,6 +123,31 @@ export function SettingsForm({ initial }: { initial: SiteSettings }) {
           <Field label="ÚLTIMAS UNIDADES con stock ≤" htmlFor="s-low" hint="Solo para variantes con stock controlado">
             <input id="s-low" className="field tabular-nums" value={s.lowStockThreshold} onChange={(e) => set("lowStockThreshold", Math.min(50, Number(e.target.value.replace(/\D/g, "")) || 0))} inputMode="numeric" />
           </Field>
+        </div>
+      </Section>
+
+      <Section title="Pop-up de bienvenida">
+        <p className="mb-4 max-w-2xl text-[13px] text-mute">
+          Aparece una vez a quien entra por primera vez: deja su mail y WhatsApp y recibe un código para su primera compra pagando en efectivo o transferencia (no se suma al descuento de efectivo: queda el mayor). Las suscriptas se ven en Clientas.
+        </p>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="sm:col-span-2 lg:col-span-3">
+            <CheckboxRow checked={s.welcome.enabled} onChange={(v) => setWelcome({ enabled: v })} label="Mostrar el pop-up" />
+          </div>
+          <Field label="% OFF de bienvenida" htmlFor="s-wpct">
+            <input id="s-wpct" className="field tabular-nums" value={s.welcome.percent} onChange={(e) => setWelcome({ percent: Math.min(90, Number(e.target.value.replace(/\D/g, "")) || 0) })} inputMode="numeric" />
+          </Field>
+          <Field label="Aparece a los (segundos)" htmlFor="s-wdelay" hint="O antes, si baja por la página">
+            <input id="s-wdelay" className="field tabular-nums" value={s.welcome.delaySeconds} onChange={(e) => setWelcome({ delaySeconds: Math.min(120, Number(e.target.value.replace(/\D/g, "")) || 0) })} inputMode="numeric" />
+          </Field>
+          <Field label="Título" htmlFor="s-wtitle">
+            <input id="s-wtitle" className="field" value={s.welcome.title} onChange={(e) => setWelcome({ title: e.target.value })} maxLength={80} />
+          </Field>
+          <div className="sm:col-span-2 lg:col-span-3">
+            <Field label="Texto" htmlFor="s-wtext">
+              <textarea id="s-wtext" className="field min-h-16" value={s.welcome.text} onChange={(e) => setWelcome({ text: e.target.value })} maxLength={240} />
+            </Field>
+          </div>
         </div>
       </Section>
 

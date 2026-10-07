@@ -230,3 +230,11 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Modo mayorista: la clase "mayorista" la pone el script del <head> si la persona entró con el código */
+html.mayorista .retail-only {
+  display: none !important;
+}
+html.mayorista:not(.mayorista-listo) [data-price] {
+  visibility: hidden;
+}

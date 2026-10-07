@@ -29,9 +29,16 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+// Antes de pintar: si la persona entró como mayorista, se ocultan los precios de la tienda hasta que
+// lleguen los precios por mayor (así no ve por un instante los precios minoristas).
+const WHOLESALE_BOOT = `try{if(document.cookie.split(/;\\s*/).indexOf("inedita_my=1")>-1)document.documentElement.classList.add("mayorista")}catch(e){}`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es-AR" className={`${interTight.variable} antialiased`}>
+    <html lang="es-AR" className={`${interTight.variable} antialiased`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: WHOLESALE_BOOT }} />
+      </head>
       <body className="min-h-dvh bg-paper text-ink">
         {children}
         <MarketingScripts />

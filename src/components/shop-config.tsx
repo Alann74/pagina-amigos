@@ -9,6 +9,7 @@ export type ShopConfig = {
   freeShippingThreshold: number | null;
   storeAddressShort: string;
   siteUrl: string;
+  welcome: { enabled: boolean; percent: number; title: string; text: string; delaySeconds: number };
 };
 
 const Ctx = createContext<ShopConfig | null>(null);

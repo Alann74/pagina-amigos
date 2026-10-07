@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { MinusIcon, PlusIcon } from "@/components/icons";
+import { useCartPricing } from "@/components/wholesale";
 import { displayColor, displaySize, formatPrice } from "@/lib/format";
 import { MAX_QTY, useCart, type CartItem } from "@/stores/cart";
 
@@ -10,6 +11,7 @@ export function CartLine({ item, compact = false }: { item: CartItem; compact?: 
   const setQuantity = useCart((s) => s.setQuantity);
   const remove = useCart((s) => s.remove);
   const changeVariant = useCart((s) => s.changeVariant);
+  const { unitPrice } = useCartPricing();
 
   const sizes = [...new Set(item.options.map((o) => o.size))];
   const colorsForSize = item.options.filter((o) => o.size === item.size);
@@ -32,7 +34,9 @@ export function CartLine({ item, compact = false }: { item: CartItem; compact?: 
           <Link href={`/producto/${item.slug}`} className="text-[13px] leading-snug">
             {item.name}
           </Link>
-          <p className="shrink-0 text-[13px] tabular-nums">{formatPrice(item.price * item.quantity)}</p>
+          <p className="shrink-0 text-[13px] tabular-nums" data-price>
+            {formatPrice(unitPrice(item) * item.quantity)}
+          </p>
         </div>
         {item.articleCode ? <p className="mt-0.5 text-[11px] text-mute">Art. {item.articleCode}</p> : null}
         <div className={`mt-2 flex flex-wrap gap-x-4 gap-y-2 ${compact ? "" : "sm:mt-3"}`}>

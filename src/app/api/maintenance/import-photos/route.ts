@@ -15,6 +15,12 @@ const blobEnvNames = () => Object.keys(process.env).filter((k) => /BLOB|OIDC/.te
 export async function GET(request: Request) {
   const url = new URL(request.url);
   if (!validMaintenanceToken(url.searchParams.get("token"))) return new Response("No encontrado", { status: 404 });
+  // Refrescar la tienda ya mismo (fuera de segundo plano, así seguro se aplica)
+  if (url.searchParams.get("refrescar")) {
+    revalidateTag(TAGS.catalog, { expire: 0 });
+    revalidateTag(TAGS.settings, { expire: 0 });
+    return Response.json({ ok: true, refrescado: true });
+  }
   const progress = await photoProgress();
   if (url.searchParams.get("estado")) return Response.json(progress);
   if (url.searchParams.get("diagnostico")) {
@@ -24,6 +30,8 @@ export async function GET(request: Request) {
   }
 
   const step = Number(url.searchParams.get("paso") ?? 1);
+  // Lo importado en la tanda anterior se publica ya (además de al final de cada tanda)
+  if (step > 1) revalidateTag(TAGS.catalog, { expire: 0 });
   await logImport({ paso: step, estado: "iniciado", blob: blobEnabled(), variables: blobEnvNames(), ...progress });
   after(async () => {
     try {

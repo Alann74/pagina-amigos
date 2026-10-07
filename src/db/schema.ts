@@ -56,6 +56,8 @@ export const products = pgTable(
     // Precios en pesos enteros (sin decimales)
     price: integer("price").notNull(),
     compareAtPrice: integer("compare_at_price"),
+    // Precio por mayor (solo lo ven los mayoristas que entran con el código en /mayoristas)
+    wholesalePrice: integer("wholesale_price"),
     visible: boolean("visible").notNull().default(true),
     featured: boolean("featured").notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
@@ -139,6 +141,10 @@ export const orders = pgTable(
     cashTotal: integer("cash_total").notNull(),
     discountPercent: integer("discount_percent").notNull().default(0),
     whatsappMessage: text("whatsapp_message").notNull(),
+    // "minorista" (tienda) o "mayorista" (entró con el código de /mayoristas)
+    channel: text("channel").notNull().default("minorista"),
+    // Código de bienvenida del pop-up (20% OFF en la primera compra) si se aplicó
+    promoCode: text("promo_code"),
     utmSource: text("utm_source"),
     utmMedium: text("utm_medium"),
     utmCampaign: text("utm_campaign"),
@@ -196,6 +202,27 @@ export const withdrawalRequests = pgTable("withdrawal_requests", {
   ...timestamps,
 });
 
+// Suscriptas del pop-up de bienvenida: dejan mail y WhatsApp y reciben un código de descuento para la primera compra
+export const subscribers = pgTable(
+  "subscribers",
+  {
+    id: serial("id").primaryKey(),
+    email: text("email").notNull().unique(),
+    phone: text("phone").notNull(),
+    // Últimos 8 dígitos del teléfono: así se reconoce a la clienta aunque escriba el número distinto (con 0, 15, +54…)
+    phoneKey: text("phone_key").notNull(),
+    code: text("code").notNull().unique(),
+    discountPercent: integer("discount_percent").notNull(),
+    landingPath: text("landing_path"),
+    utmSource: text("utm_source"),
+    utmCampaign: text("utm_campaign"),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    orderId: integer("order_id").references(() => orders.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("subscribers_phone_idx").on(t.phoneKey), index("subscribers_created_idx").on(t.createdAt)],
+);
+
 export type Category = typeof categories.$inferSelect;
 export type Color = typeof colors.$inferSelect;
 export type Product = typeof products.$inferSelect;
@@ -203,3 +230,4 @@ export type ProductImage = typeof productImages.$inferSelect;
 export type Variant = typeof variants.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
+export type Subscriber = typeof subscribers.$inferSelect;

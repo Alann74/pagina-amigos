@@ -2,9 +2,11 @@ import { randomBytes } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { colors, orderItems, orders, products, variants } from "@/db/schema";
-import { cashPrice, formatOrderNumber } from "@/lib/format";
+import { colors, orderItems, orders, products, subscribers, variants } from "@/db/schema";
+import { cashPrice, formatOrderNumber, formatPrice } from "@/lib/format";
 import type { SiteSettings } from "@/lib/site-config";
+import { findUnusedWelcome } from "@/lib/welcome";
+import type { WholesaleSettings } from "@/lib/wholesale-config";
 import { buildOrderMessage, whatsappUrl } from "@/lib/whatsapp";
 
 const optionalText = (max: number) =>
@@ -32,6 +34,8 @@ export const orderInputSchema = z
     deliveryArea: optionalText(120),
     paymentMethod: z.enum(["efectivo", "transferencia", "tarjeta"]),
     comment: optionalText(500),
+    // Código del pop-up de bienvenida (si la clienta se suscribió en este navegador o lo escribió)
+    promoCode: optionalText(20),
     attribution: z
       .object({
         utmSource: optionalText(120),
@@ -64,7 +68,8 @@ export class OrderError extends Error {
   }
 }
 
-export async function createOrder(input: OrderInput, settings: SiteSettings, userAgent: string | null) {
+/** `wholesale`: configuración mayorista si el pedido viene de alguien que entró con el código (si no, null). */
+export async function createOrder(input: OrderInput, settings: SiteSettings, userAgent: string | null, wholesale: WholesaleSettings | null = null) {
   // Agrupamos por variante por si el cliente mandó la misma dos veces
   const qtyByVariant = new Map<number, number>();
   for (const item of input.items) qtyByVariant.set(item.variantId, Math.min(10, (qtyByVariant.get(item.variantId) ?? 0) + item.quantity));
@@ -80,6 +85,7 @@ export async function createOrder(input: OrderInput, settings: SiteSettings, use
       active: variants.active,
       priceOverride: variants.priceOverride,
       price: products.price,
+      wholesalePrice: products.wholesalePrice,
       name: products.name,
       articleCode: products.articleCode,
       visible: products.visible,
@@ -104,13 +110,26 @@ export async function createOrder(input: OrderInput, settings: SiteSettings, use
   const lines = ids.map((id) => {
     const row = byId.get(id)!;
     const quantity = qtyByVariant.get(id)!;
-    const unitPrice = row.priceOverride ?? row.price;
+    const retail = row.priceOverride ?? row.price;
+    // Mayorista: precio por mayor (si un producto todavía no lo tiene, va al de la tienda)
+    const unitPrice = wholesale && row.wholesalePrice && row.wholesalePrice > 0 ? row.wholesalePrice : retail;
     return { row, quantity, unitPrice, lineTotal: unitPrice * quantity };
   });
   const subtotal = lines.reduce((acc, l) => acc + l.lineTotal, 0);
-  const discountPercent = settings.promo.cashDiscountPercent;
-  const cashTotal = cashPrice(subtotal, discountPercent);
   const itemsCount = lines.reduce((acc, l) => acc + l.quantity, 0);
+  if (wholesale && wholesale.minAmount > 0 && subtotal < wholesale.minAmount) {
+    throw new OrderError(`La compra mínima mayorista es de ${formatPrice(wholesale.minAmount)}. Te faltan ${formatPrice(wholesale.minAmount - subtotal)}.`, 400);
+  }
+  if (wholesale && wholesale.minUnits > 0 && itemsCount < wholesale.minUnits) {
+    throw new OrderError(`El pedido mayorista mínimo es de ${wholesale.minUnits} prendas (llevás ${itemsCount}).`, 400);
+  }
+  let discountPercent = wholesale ? wholesale.cashDiscountPercent : settings.promo.cashDiscountPercent;
+  // Bienvenida del pop-up: primera compra pagando en efectivo o transferencia (no se suma: queda el mayor)
+  const welcome =
+    !wholesale && settings.welcome.enabled && input.paymentMethod !== "tarjeta" ? await findUnusedWelcome(input.promoCode, input.customerPhone) : null;
+  const welcomeApplied = welcome && welcome.discountPercent > discountPercent ? welcome : null;
+  if (welcomeApplied) discountPercent = welcomeApplied.discountPercent;
+  const cashTotal = cashPrice(subtotal, discountPercent);
   const publicToken = randomBytes(18).toString("base64url");
   const a = input.attribution ?? null;
 
@@ -130,6 +149,8 @@ export async function createOrder(input: OrderInput, settings: SiteSettings, use
         cashTotal,
         discountPercent,
         whatsappMessage: "",
+        channel: wholesale ? "mayorista" : "minorista",
+        promoCode: welcomeApplied?.code ?? null,
         utmSource: a?.utmSource ?? null,
         utmMedium: a?.utmMedium ?? null,
         utmCampaign: a?.utmCampaign ?? null,
@@ -162,9 +183,12 @@ export async function createOrder(input: OrderInput, settings: SiteSettings, use
       delivery: { method: input.deliveryMethod, area: input.deliveryArea, storeAddressShort: settings.address.split(",")[0] ?? settings.address },
       payment: input.paymentMethod,
       comment: input.comment,
+      wholesale: Boolean(wholesale),
+      welcomeCode: welcomeApplied?.code ?? null,
     });
 
     await tx.update(orders).set({ whatsappMessage: message }).where(eq(orders.id, order.id));
+    if (welcomeApplied) await tx.update(subscribers).set({ usedAt: new Date(), orderId: order.id }).where(eq(subscribers.id, welcomeApplied.id));
     await tx.insert(orderItems).values(
       lines.map((l) => ({
         orderId: order.id,
@@ -188,6 +212,8 @@ export async function createOrder(input: OrderInput, settings: SiteSettings, use
     token: publicToken,
     subtotal,
     cashTotal,
+    discountPercent,
+    welcomeApplied: Boolean(welcomeApplied),
     whatsappUrl: whatsappUrl(settings.whatsappNumber, result.message),
     items: lines.map((l) => ({ id: l.row.articleCode ?? String(l.row.productId), name: l.row.name, price: l.unitPrice, quantity: l.quantity })),
   };
