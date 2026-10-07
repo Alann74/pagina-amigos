@@ -8,7 +8,8 @@ import { classifyPhoto, type PhotoKind } from "@/lib/photo-classify";
 // "39606 1_limpia.jpg", o "__21.A-39093_SET CON 39472" y "__21.B-39472_SET CON 39093").
 // Se comparan por contenido: misma forma y mismo color (la misma prenda en otro color no es repetida).
 
-const EXCLUDED_KEY = "fotos-excluidas";
+// v2: la lista de la comparación anterior (que confundía colores) no se usa
+const EXCLUDED_KEY = "fotos-excluidas-v2";
 
 /** Fotos de Drive que no se vuelven a importar (repetidas que se sacaron), por artículo. */
 export async function getExcludedDriveIds(): Promise<Record<string, string[]>> {
