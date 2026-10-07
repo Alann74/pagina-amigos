@@ -15,6 +15,9 @@ import { whatsappUrl } from "@/lib/whatsapp";
 export default async function ShopLayout({ children }: LayoutProps<"/">) {
   const [settings, categories] = await Promise.all([getSettings(), getCategories()]);
   const menuCategories = categories.filter((c) => c.productCount > 0).map((c) => ({ slug: c.slug, name: c.name }));
+  // Escritorio: accesos directos en el header (las categorías destacadas en el admin)
+  const featured = categories.filter((c) => c.featured && c.productCount > 0);
+  const headerLinks = [{ href: "/productos?orden=nuevos", label: "Nuevo" }, ...(featured.length ? featured : categories.filter((c) => c.productCount > 0)).slice(0, 5).map((c) => ({ href: `/categoria/${c.slug}`, label: c.name }))];
   const config = {
     whatsappNumber: settings.whatsappNumber,
     cashDiscountPercent: settings.promo.cashDiscountPercent,
@@ -29,7 +32,7 @@ export default async function ShopLayout({ children }: LayoutProps<"/">) {
         Saltar al contenido
       </a>
       <AnnouncementBar />
-      <Header />
+      <Header links={headerLinks} />
       <main id="contenido" className="min-h-[60vh]">
         {children}
       </main>

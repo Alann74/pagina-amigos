@@ -9,7 +9,9 @@ import { useFavorites } from "@/stores/favorites";
 import { useUi } from "@/stores/ui";
 import { useHydrated } from "@/lib/use-hydrated";
 
-export function Header() {
+export type HeaderLink = { href: string; label: string };
+
+export function Header({ links = [] }: { links?: HeaderLink[] }) {
   const hydrated = useHydrated();
   const items = useCart((s) => s.items);
   const openCart = useCart((s) => s.open);
@@ -42,21 +44,36 @@ export function Header() {
             aria-haspopup="dialog"
           >
             <MenuIcon />
-            <span className="nav-link hidden lg:inline">Menú</span>
+            <span className={`nav-link hidden ${links.length ? "2xl:inline" : "lg:inline"}`}>Menú</span>
           </button>
           <button
             type="button"
             onClick={() => setSearch(true)}
-            className="flex h-11 items-center gap-2 px-2.5"
+            className={`flex h-11 items-center gap-2 px-2.5 ${links.length ? "lg:hidden" : ""}`}
             aria-label="Buscar"
             aria-haspopup="dialog"
           >
             <SearchIcon />
             <span className="nav-link hidden lg:inline">Buscar</span>
           </button>
+          {links.length ? (
+            <nav aria-label="Principal" className="ml-3 hidden items-center gap-6 lg:flex xl:gap-7">
+              {links.map((l, i) => (
+                <Link key={l.href} href={l.href} className={`nav-link link-underline py-1 ${i >= 5 ? "hidden 2xl:inline" : i >= 3 ? "hidden xl:inline" : ""}`}>
+                  {l.label}
+                </Link>
+              ))}
+            </nav>
+          ) : null}
         </div>
         <Logo />
         <div className="flex items-center justify-end">
+          {links.length ? (
+            <button type="button" onClick={() => setSearch(true)} className="hidden h-11 items-center gap-2 px-2.5 lg:flex" aria-label="Buscar" aria-haspopup="dialog">
+              <SearchIcon />
+              <span className="nav-link">Buscar</span>
+            </button>
+          ) : null}
           <Link href="/favoritos" className="relative flex h-11 items-center gap-2 px-2.5" aria-label={`Favoritos${hydrated && favorites ? ` (${favorites})` : ""}`}>
             <HeartIcon filled={hydrated && favorites > 0} />
             <span className="nav-link hidden lg:inline">Favoritos</span>

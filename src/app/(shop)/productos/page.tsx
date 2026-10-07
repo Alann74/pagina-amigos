@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { CategoryChips } from "@/components/category-chips";
 import { PageTitle } from "@/components/page-title";
 import { ProductListing } from "@/components/product/product-listing";
-import { getCatalog } from "@/lib/catalog";
+import { getCatalog, getCategories } from "@/lib/catalog";
 import { toEntry } from "@/lib/catalog-entry";
 
 export const metadata: Metadata = {
@@ -11,11 +12,12 @@ export const metadata: Metadata = {
 };
 
 export default async function ProductsPage() {
-  const catalog = await getCatalog();
+  const [catalog, categories] = await Promise.all([getCatalog(), getCategories()]);
   const entries = catalog.map(toEntry);
   return (
     <>
       <PageTitle title="Toda la colección" count={entries.length} />
+      <CategoryChips categories={categories} active={null} />
       <ProductListing products={entries} />
     </>
   );

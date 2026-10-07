@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { CategoryChips } from "@/components/category-chips";
 import { PageTitle } from "@/components/page-title";
 import { ProductListing } from "@/components/product/product-listing";
 import { GridSkeleton } from "@/components/skeletons";
@@ -26,12 +27,13 @@ export async function generateMetadata({ params }: PageProps<"/categoria/[slug]"
 
 async function CategoryContent({ params }: { params: PageProps<"/categoria/[slug]">["params"] }) {
   const { slug } = await params;
-  const [category, catalog] = await Promise.all([getCategoryBySlug(slug), getCatalog()]);
+  const [category, catalog, categories] = await Promise.all([getCategoryBySlug(slug), getCatalog(), getCategories()]);
   if (!category) notFound();
   const entries = catalog.filter((p) => p.categorySlug === category.slug).map(toEntry);
   return (
     <>
       <PageTitle title={category.name} count={entries.length} />
+      <CategoryChips categories={categories} active={category.slug} />
       <ProductListing products={entries} emptyText="Pronto vas a encontrar productos en esta categoría." />
     </>
   );

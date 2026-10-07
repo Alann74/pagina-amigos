@@ -19,8 +19,8 @@ export function WhatsAppFloat() {
       rel="noopener"
       onClick={() => trackContactWhatsapp("flotante")}
       aria-label="Escribinos por WhatsApp"
-      className={`fixed right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-ink text-paper transition-transform duration-200 hover:scale-105 sm:right-6 ${
-        onProduct ? "bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-6" : "bottom-[calc(1.25rem+env(safe-area-inset-bottom))] sm:bottom-6"
+      className={`fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-4 z-30 h-12 w-12 items-center justify-center rounded-full bg-ink text-paper transition-transform duration-200 hover:scale-105 sm:bottom-6 sm:right-6 ${
+        onProduct ? "hidden lg:flex" : "flex"
       }`}
       data-testid="whatsapp-float"
     >

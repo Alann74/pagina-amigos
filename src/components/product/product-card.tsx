@@ -58,10 +58,13 @@ export function ProductCard({ product, priority = false, sizes = "(min-width: 10
         </div>
         <div className="mt-2.5 px-0.5 sm:mt-3">
           <h3 className="text-[12.5px] leading-snug sm:text-[13px]">{product.name}</h3>
-          <p className="mt-0.5 text-[12.5px] tabular-nums sm:text-[13px]">{formatPrice(product.price)}</p>
+          <p className="mt-0.5 flex items-baseline justify-between gap-2 text-[12.5px] tabular-nums sm:text-[13px]">
+            <span>{formatPrice(product.price)}</span>
+            {product.colors.length > 1 ? <span className="shrink-0 text-[11px] text-mute">{product.colors.length} colores</span> : null}
+          </p>
           {cashDiscountPercent > 0 ? (
-            <p className="mt-0.5 text-[11px] leading-snug text-mute tabular-nums">
-              {formatPrice(cashPrice(product.price, cashDiscountPercent))} con {cashDiscountPercent}% OFF efectivo/transferencia
+            <p className="mt-1 text-[11px] leading-snug text-mute tabular-nums">
+              <span className="font-medium text-ink">{formatPrice(cashPrice(product.price, cashDiscountPercent))}</span> con {cashDiscountPercent}% OFF efectivo/transferencia
             </p>
           ) : null}
         </div>

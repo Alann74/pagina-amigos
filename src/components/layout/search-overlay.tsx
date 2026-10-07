@@ -25,6 +25,8 @@ export function SearchOverlay() {
   const router = useRouter();
 
   const results = useMemo(() => (index && deferred.trim().length >= 2 ? searchEntries(index, deferred, 12) : []), [index, deferred]);
+  // Sin búsqueda: lo último que entró, para inspirar
+  const newest = useMemo(() => (index ? [...index].filter((e) => e.image && !e.soldOut).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 6) : []), [index]);
 
   useEffect(() => {
     if (!open) return;
@@ -71,6 +73,18 @@ export function SearchOverlay() {
           className="h-16 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-faint"
           data-testid="search-input"
         />
+        {query ? (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              inputRef.current?.focus();
+            }}
+            className="nav-link h-11 px-2 text-mute hover:text-ink"
+          >
+            Borrar
+          </button>
+        ) : null}
         <button type="button" onClick={close} className="-mr-2 flex h-11 w-11 items-center justify-center" aria-label="Cerrar búsqueda">
           <CloseIcon />
         </button>
@@ -89,6 +103,24 @@ export function SearchOverlay() {
                   </li>
                 ))}
               </ul>
+              {newest.length ? (
+                <>
+                  <p className="label mt-10 text-mute">Nuevos ingresos</p>
+                  <ul className="mt-4 grid grid-cols-3 gap-x-1 gap-y-5 sm:grid-cols-6">
+                    {newest.map((r) => (
+                      <li key={r.id}>
+                        <Link href={`/producto/${r.slug}`} onClick={close} className="block">
+                          <div className="relative aspect-[3/4] overflow-hidden bg-soft">
+                            {r.image ? <Image src={r.image} alt={r.name} fill sizes="(min-width:640px) 16vw, 33vw" className="object-cover" /> : null}
+                          </div>
+                          <p className="mt-2 truncate text-[12px]">{r.name}</p>
+                          <p className="text-[12px] tabular-nums text-mute">{formatPrice(r.price)}</p>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
             </div>
           ) : !index ? (
             <p className="label text-mute">Buscando…</p>
