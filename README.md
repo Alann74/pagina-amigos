@@ -18,6 +18,7 @@ Next.js 16 (App Router) · TypeScript · Tailwind CSS 4 · Postgres en Neon con 
 | `ADMIN_PASSWORD` | Sí | Contraseña del panel `/admin`. |
 | `BLOB_READ_WRITE_TOKEN` | En producción | Guardar fotos en Vercel Blob. Lo completa Vercel al conectar Blob. Sin él (en local) las fotos van a `public/uploads`. |
 | `ADMIN_SESSION_SECRET` | No | Texto largo al azar para firmar la sesión del admin. |
+| `MAINTENANCE_TOKEN` | No | Clave para disparar la importación automática de fotos (`/api/maintenance/import-photos`). |
 | `NEXT_PUBLIC_SITE_URL` | No | Dirección pública del sitio. En Vercel se toma sola; definila al pasar al dominio propio. |
 | `NEXT_PUBLIC_META_PIXEL_ID` | No | Meta Pixel. Si está vacía no se carga. |
 | `NEXT_PUBLIC_GA4_ID` | No | Google Analytics 4 (`G-XXXX`). Si está vacía no se carga. |
@@ -40,14 +41,12 @@ Otros comandos: `npm run build` · `npm run lint` · `npm run typecheck` · `npm
 
 ## Publicar en Vercel (primera vez)
 
-1. En Vercel: **Add New → Project** e importar este repositorio de GitHub.
-2. En el proyecto: **Storage → Create → Neon** (región *São Paulo, sa-east-1*) y conectarlo. Eso crea `DATABASE_URL`.
-3. **Storage → Create → Blob** y conectarlo. Eso crea `BLOB_READ_WRITE_TOKEN`.
-4. **Settings → Environment Variables**: agregar `ADMIN_PASSWORD` (y si querés `ADMIN_SESSION_SECRET`, `NEXT_PUBLIC_META_PIXEL_ID`, `NEXT_PUBLIC_GA4_ID`).
-5. **Deploy**. La web queda en `https://<proyecto>.vercel.app` (las funciones corren en São Paulo, junto a la base).
-6. Entrar a `/admin` → **Instalación** → **Preparar base de datos** (crea las tablas y carga los 182 productos del POS; se puede repetir sin duplicar nada).
-7. **Fotos** → **Importar fotos pendientes**: baja las fotos de Drive, las optimiza y las sube a Blob (tarda unos minutos; si se corta, se vuelve a tocar y sigue donde quedó). Ahí también se elige la foto de portada y la de “Comprá el look”.
-8. Revisar los textos marcados como **BORRADOR** en **Configuración → Textos** (preguntas frecuentes, cambios, envíos, guía de talles).
+1. En Vercel: **Add New → Project** e importar este repositorio de GitHub (rama `main`).
+2. Antes de tocar **Deploy**, en **Environment Variables** cargar `DATABASE_URL`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET` y `MAINTENANCE_TOKEN` (se puede pegar un bloque `.env` entero). Si no hay base todavía: **Storage → Create → Neon** (región *São Paulo, sa-east-1*) crea `DATABASE_URL`.
+3. **Deploy**. En el build se crean las tablas y, si la base está vacía, se cargan los 182 productos del POS (`npm run vercel-build`). Las funciones corren en São Paulo, junto a la base.
+4. **Storage → Create → Blob → Connect** al proyecto (crea `BLOB_READ_WRITE_TOKEN`) y después **Deployments → Redeploy** para que tome la variable.
+5. Fotos: en `/admin` → **Fotos** → **Importar fotos pendientes**, o abrir una vez `https://<proyecto>.vercel.app/api/maintenance/import-photos?token=<MAINTENANCE_TOKEN>`: importa todas las fotos de Drive en segundo plano (unos minutos) y, si no se eligieron, pone fotos de campaña en la portada y en “Comprá el look”. Agregando `&estado=1` muestra el avance.
+6. Revisar en `/admin` → **Instalación** que todo esté tildado, y los textos marcados como **BORRADOR** en **Configuración → Textos**.
 
 > El dominio `inedita-rosario.com` sigue en Tienda Nube. El cambio de dominio se hace aparte, cuando se apruebe: en Vercel **Settings → Domains** y después definir `NEXT_PUBLIC_SITE_URL`.
 >
