@@ -116,7 +116,7 @@ function CardCarousel({ images, href, name, sizes, priority, dim }: { images: st
                 sizes={sizes}
                 priority={priority && i === 0}
                 draggable={false}
-                className={`select-none object-cover ${dim ? "opacity-60" : ""}`}
+                className={`select-none object-cover transition-transform duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)] lg:group-hover:scale-[1.04] ${dim ? "opacity-60" : ""}`}
               />
             ) : null}
           </Link>

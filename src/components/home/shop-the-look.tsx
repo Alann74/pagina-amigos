@@ -72,10 +72,10 @@ function LookItem({ product }: { product: ClientProduct }) {
 export function ShopTheLook({ title, image, products }: { title: string; image: string; products: ClientProduct[] }) {
   return (
     <section className="grid gap-6 lg:grid-cols-2 lg:gap-0" aria-labelledby="look-title">
-      <div className="relative aspect-[4/5] overflow-hidden bg-soft lg:aspect-auto lg:min-h-[720px]">
+      <div className="relative aspect-[4/5] overflow-hidden bg-soft lg:aspect-auto lg:min-h-[720px]" data-reveal>
         <Image src={image} alt={title} fill sizes="(min-width: 1024px) 50vw, 100vw" className="object-cover" />
       </div>
-      <div className="flex flex-col justify-center px-4 sm:px-8 lg:px-16">
+      <div className="flex flex-col justify-center px-4 sm:px-8 lg:px-16" data-reveal style={{ ["--reveal-delay" as string]: "150ms" }}>
         <h2 id="look-title" className="text-[12px] font-medium uppercase tracking-[0.24em] sm:text-[13px]">
           {title}
         </h2>

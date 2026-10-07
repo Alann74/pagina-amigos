@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BagIcon, HeartIcon, MenuIcon, SearchIcon } from "@/components/icons";
 import { Logo } from "@/components/layout/logo";
 import { cartCount, useCart } from "@/stores/cart";
@@ -20,6 +20,18 @@ export function Header({ links = [] }: { links?: HeaderLink[] }) {
   const setSearch = useUi((s) => s.setSearch);
   const [scrolled, setScrolled] = useState(false);
   const count = hydrated ? cartCount(items) : 0;
+  // Cuando se agrega una prenda, el número de la bolsa da un saltito (no al cargar la bolsa guardada)
+  const [bump, setBump] = useState(0);
+  const prevCount = useRef(0);
+  const ready = useRef(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => (ready.current = true), 1000);
+    return () => window.clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    if (ready.current && count > prevCount.current) setBump((b) => b + 1);
+    prevCount.current = count;
+  }, [count]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -90,7 +102,8 @@ export function Header({ links = [] }: { links?: HeaderLink[] }) {
             <span className="nav-link hidden lg:inline">Bolsa</span>
             {count > 0 ? (
               <span
-                className="absolute right-0.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ink px-1 text-[10px] font-medium leading-none text-paper lg:static lg:h-auto lg:min-w-0 lg:bg-transparent lg:p-0 lg:text-2xs lg:text-ink"
+                key={bump}
+                className={`absolute right-0.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ink px-1 text-[10px] font-medium leading-none text-paper lg:static lg:h-auto lg:min-w-0 lg:bg-transparent lg:p-0 lg:text-2xs lg:text-ink ${bump ? "animate-pop" : ""}`}
                 data-testid="cart-count"
               >
                 <span className="lg:hidden">{count}</span>

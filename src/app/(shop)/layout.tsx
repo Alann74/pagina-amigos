@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { AnnouncementBar } from "@/components/layout/announcement-bar";
+import { RevealOnScroll } from "@/components/reveal";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { MenuDrawer } from "@/components/layout/menu-drawer";
@@ -42,6 +43,7 @@ export default async function ShopLayout({ children }: LayoutProps<"/">) {
           {children}
         </main>
         <Footer />
+        <RevealOnScroll />
         <Suspense>
           <ShopProviders />
         </Suspense>

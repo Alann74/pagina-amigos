@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Drawer } from "@/components/layout/drawer";
 import { FilterIcon, GridOneIcon, GridTwoIcon } from "@/components/icons";
 import { ProductCard } from "@/components/product/product-card";
+import { revealDelay } from "@/lib/reveal";
 import { displayColor, displaySize, formatPrice, sizeOrder, slugify } from "@/lib/format";
 import type { SearchEntry } from "@/lib/search";
 import { useHydrated } from "@/lib/use-hydrated";
@@ -167,7 +168,7 @@ export function ProductListing({ products, emptyText = "No hay productos para mo
             data-testid="product-grid"
           >
             {shown.map((p, i) => (
-              <li key={p.id} className="animate-fade-in">
+              <li key={p.id} data-reveal style={revealDelay(i, cols === 1 ? 1 : 4)}>
                 <ProductCard product={p} priority={i < 4} sizes={cols === 1 ? "(min-width: 1024px) 25vw, 100vw" : "(min-width: 1024px) 25vw, 50vw"} />
               </li>
             ))}
