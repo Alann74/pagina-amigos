@@ -167,6 +167,13 @@ function ImagesManager({ productId, images, colors }: { productId: number; image
   const inputRef = useRef<HTMLInputElement>(null);
   const { pending, feedback, setFeedback, run } = useAction();
 
+  function makeMain(index: number) {
+    if (index === 0) return;
+    const next = [list[index], ...list.filter((_, k) => k !== index)];
+    setList(next);
+    run(() => reorderImages(productId, next.map((i) => i.id)).then((r) => (r.ok ? { ok: true, message: "Foto principal elegida" } : r)));
+  }
+
   function move(index: number, delta: number) {
     const next = [...list];
     const target = index + delta;
@@ -204,6 +211,17 @@ function ImagesManager({ productId, images, colors }: { productId: number; image
             <div className="relative aspect-[3/4] bg-soft">
               <Image src={img.url} alt="" fill sizes="(min-width: 1024px) 16vw, 50vw" className="object-cover" />
               {i < 2 ? <span className="label absolute left-1.5 top-1.5 bg-ink px-1.5 py-0.5 text-paper">{i === 0 ? "Principal" : "Hover"}</span> : null}
+              {i > 0 ? (
+                <button
+                  type="button"
+                  className="label absolute bottom-1.5 left-1.5 bg-paper/90 px-1.5 py-1 hover:bg-ink hover:text-paper disabled:opacity-40"
+                  disabled={pending}
+                  onClick={() => makeMain(i)}
+                  data-testid="make-main"
+                >
+                  Hacer principal
+                </button>
+              ) : null}
             </div>
             <div className="space-y-2 p-2">
               {colors.length > 1 ? (
