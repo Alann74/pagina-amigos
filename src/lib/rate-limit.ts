@@ -17,3 +17,17 @@ export function rateLimit(key: string, max: number, windowMs: number): boolean {
 export function clientIp(headers: Headers): string {
   return headers.get("x-forwarded-for")?.split(",")[0]?.trim() || headers.get("x-real-ip") || "anon";
 }
+
+/** Para el login: solo cuentan los intentos fallidos. */
+export function isBlocked(key: string, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  const list = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
+  hits.set(key, list);
+  return list.length >= max;
+}
+
+export function recordFailure(key: string): void {
+  const list = hits.get(key) ?? [];
+  list.push(Date.now());
+  hits.set(key, list);
+}

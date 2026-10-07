@@ -61,7 +61,9 @@ export function ProductListing({ products, emptyText = "No hay productos para mo
   const [visible, setVisible] = useState(PAGE);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // Los filtros viven en la URL (se pueden compartir); se leen al montar porque la página es estática
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza con la URL (sistema externo) una sola vez
     setFilters(readFilters());
   }, []);
 

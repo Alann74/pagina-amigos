@@ -96,6 +96,9 @@ for (const [code, list] of perProduct) {
 }
 
 fs.writeFileSync(path.join(root, "data/photo-matches.json"), JSON.stringify(result, null, 1));
+// Para el reporte del admin: fotos cuyo artículo no está cargado (por si se agrega después)
+const unmatched = Object.fromEntries([...unknownCodes.entries()].sort().map(([c, t]) => [c, t]));
+fs.writeFileSync(path.join(root, "data/photo-unmatched.json"), JSON.stringify({ codes: unmatched, noCode: orphanFiles }, null, 1));
 
 const withPhoto = [...products.keys()].filter((c) => result[c]);
 const without = [...products.values()].filter((p) => !result[p.art]);

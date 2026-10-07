@@ -10,7 +10,7 @@ import { useRecent } from "@/stores/recent";
 export function RecentlyViewed({ excludeSlug }: { excludeSlug?: string }) {
   const hydrated = useHydrated();
   const slugs = useRecent((s) => s.slugs);
-  const wanted = hydrated ? slugs.filter((s) => s !== excludeSlug).slice(0, 4) : [];
+  const wanted = useMemo(() => (hydrated ? slugs.filter((s) => s !== excludeSlug).slice(0, 4) : []), [hydrated, slugs, excludeSlug]);
   const index = useSearchIndex(wanted.length > 0);
   const items = useMemo(() => {
     if (!index) return [];

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CartLine } from "@/components/cart/cart-line";
 import { CartTotals, FreeShippingBar } from "@/components/cart/cart-totals";
 import { CompleteLook } from "@/components/cart/complete-look";
@@ -34,16 +34,19 @@ export function Checkout() {
   const items = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
   const { storeAddressShort, cashDiscountPercent, installments } = useShopConfig();
-  const [form, setForm] = useState<Form>({ customerName: "", customerPhone: "", deliveryMethod: "retiro", deliveryArea: "", paymentMethod: "transferencia", comment: "" });
-  const [error, setError] = useState<{ message: string; field?: string } | null>(null);
-  const [sending, setSending] = useState(false);
-
-  useEffect(() => {
+  // Los datos de la última compra se recuerdan en este navegador (el formulario solo se muestra ya hidratado)
+  const [form, setForm] = useState<Form>(() => {
+    const base: Form = { customerName: "", customerPhone: "", deliveryMethod: "retiro", deliveryArea: "", paymentMethod: "transferencia", comment: "" };
+    if (typeof window === "undefined") return base;
     try {
       const saved = JSON.parse(localStorage.getItem(FORM_KEY) ?? "null");
-      if (saved) setForm((f) => ({ ...f, customerName: saved.customerName ?? "", customerPhone: saved.customerPhone ?? "", deliveryArea: saved.deliveryArea ?? "" }));
-    } catch {}
-  }, []);
+      return saved ? { ...base, customerName: saved.customerName ?? "", customerPhone: saved.customerPhone ?? "", deliveryArea: saved.deliveryArea ?? "" } : base;
+    } catch {
+      return base;
+    }
+  });
+  const [error, setError] = useState<{ message: string; field?: string } | null>(null);
+  const [sending, setSending] = useState(false);
 
   const set = <K extends keyof Form>(key: K, value: Form[K]) => {
     setForm((f) => ({ ...f, [key]: value }));

@@ -17,6 +17,9 @@ export const TAGS = {
   bestsellers: "bestsellers",
 } as const;
 
+// Un producto se muestra solo si está visible, tiene precio y al menos una foto (nunca productos sin foto o sin precio).
+const publishable = sql`${products.visible} and ${products.price} > 0 and exists (select 1 from product_images pi where pi.product_id = ${products.id})`;
+
 export type CatalogImage = { url: string; alt: string; color: string | null; width: number | null; height: number | null };
 
 export type CatalogVariant = {
@@ -116,7 +119,7 @@ export async function getCategories(): Promise<CatalogCategory[]> {
       name: categories.name,
       featured: categories.featured,
       imageUrl: categories.imageUrl,
-      productCount: sql<number>`count(${products.id}) filter (where ${products.visible})`.mapWith(Number),
+      productCount: sql<number>`count(${products.id}) filter (where ${publishable})`.mapWith(Number),
     })
     .from(categories)
     .leftJoin(products, eq(products.categoryId, categories.id))
@@ -155,7 +158,7 @@ export async function getCatalog(): Promise<CatalogProduct[]> {
       })
       .from(products)
       .leftJoin(categories, eq(products.categoryId, categories.id))
-      .where(and(eq(products.visible, true), sql`(${categories.id} is null or ${categories.visible})`)),
+      .where(and(publishable, sql`(${categories.id} is null or ${categories.visible})`)),
     db
       .select({
         productId: productImages.productId,

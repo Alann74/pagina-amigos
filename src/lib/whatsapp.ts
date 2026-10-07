@@ -113,3 +113,22 @@ export function variantDetail(size: string | null, color: string | null): string
   if (color) parts.push(displayColor(color));
   return parts.length ? parts.join(" / ") : null;
 }
+
+/**
+ * Pasa un teléfono argentino como lo escribe la clienta ("341 15 555-1234", "0341 5551234", "+54 9 341…")
+ * al formato de wa.me (5493415551234). Si no se puede deducir, devuelve los dígitos tal cual.
+ */
+export function toWhatsappNumber(phone: string, defaultArea = "341"): string {
+  let d = phone.replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("549")) return d;
+  if (d.startsWith("54")) d = d.slice(2);
+  if (d.startsWith("0")) d = d.slice(1);
+  // "15" después del código de área (3 o 4 dígitos) o al principio de un número local
+  if (d.length === 12 && d.slice(3, 5) === "15") d = d.slice(0, 3) + d.slice(5);
+  else if (d.length === 12 && d.slice(4, 6) === "15") d = d.slice(0, 4) + d.slice(6);
+  else if (d.length === 12 && d.slice(2, 4) === "15") d = d.slice(0, 2) + d.slice(4);
+  if (d.startsWith("15") && d.length === 9) d = defaultArea + d.slice(2);
+  if (d.length === 7) d = defaultArea + d;
+  return d.length === 10 ? `549${d}` : d;
+}

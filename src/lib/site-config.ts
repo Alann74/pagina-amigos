@@ -8,6 +8,7 @@ export type SiteSettings = {
   announcement: { enabled: boolean; text: string; href: string | null };
   hero: {
     imageUrl: string | null;
+    secondaryImageUrl: string | null; // escritorio: si está, la portada se arma con dos fotos verticales
     mobileImageUrl: string | null;
     videoUrl: string | null;
     eyebrow: string;
@@ -39,6 +40,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   },
   hero: {
     imageUrl: null,
+    secondaryImageUrl: null,
     mobileImageUrl: null,
     videoUrl: null,
     eyebrow: "Temporada 3",

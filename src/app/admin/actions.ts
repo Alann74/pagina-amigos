@@ -12,7 +12,7 @@ import { requireAdmin } from "@/lib/admin-guard";
 import { TAGS } from "@/lib/catalog";
 import { slugify, sizeOrder } from "@/lib/format";
 import { roundPrice, type Rounding } from "@/lib/pricing";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, isBlocked, recordFailure } from "@/lib/rate-limit";
 import { deleteFiles } from "@/lib/storage";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -30,11 +30,14 @@ function catalogChanged() {
 // ---------------------------------------------------------------- sesión
 
 export async function login(_prev: { error?: string } | undefined, formData: FormData): Promise<{ error?: string }> {
-  const ip = clientIp(await headers());
-  if (!rateLimit(`login:${ip}`, 8, 15 * 60 * 1000)) return { error: "Demasiados intentos. Esperá 15 minutos." };
+  const key = `login:${clientIp(await headers())}`;
+  if (isBlocked(key, 8, 15 * 60 * 1000)) return { error: "Demasiados intentos fallidos. Esperá 15 minutos." };
   if (!process.env.ADMIN_PASSWORD) return { error: "Falta configurar ADMIN_PASSWORD en Vercel." };
   const password = String(formData.get("password") ?? "");
-  if (!checkPassword(password)) return { error: "Contraseña incorrecta" };
+  if (!checkPassword(password)) {
+    recordFailure(key);
+    return { error: "Contraseña incorrecta" };
+  }
   const { token, maxAge } = createSessionToken();
   const store = await cookies();
   store.set(ADMIN_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge });
@@ -377,7 +380,16 @@ function parseBool(v: string): boolean | null {
 
 async function computeCsvChanges(raw: Record<string, string>[]) {
   const rows = raw.map((r) => csvRowSchema.parse(Object.fromEntries(Object.entries(r).map(([k, v]) => [k.trim().toLowerCase(), String(v ?? "")]))));
-  const allProducts = await db.select({ id: products.id, articleCode: products.articleCode, name: products.name, price: products.price, visible: products.visible }).from(products);
+  const allProducts = await db
+    .select({
+      id: products.id,
+      articleCode: products.articleCode,
+      name: products.name,
+      price: products.price,
+      visible: products.visible,
+      hasImage: sql<boolean>`exists (select 1 from product_images pi where pi.product_id = ${products.id})`,
+    })
+    .from(products);
   const byArticle = new Map(allProducts.filter((p) => p.articleCode).map((p) => [p.articleCode!, p]));
   const allVariants = await db.select({ id: variants.id, sku: variants.sku, stock: variants.stock, labelCode: variants.labelCode }).from(variants);
   const bySku = new Map(allVariants.map((v) => [v.sku.toUpperCase(), v]));
@@ -386,25 +398,25 @@ async function computeCsvChanges(raw: Record<string, string>[]) {
   const productPatch = new Map<number, Partial<typeof products.$inferInsert>>();
   const variantPatch = new Map<number, Partial<typeof variants.$inferInsert>>();
   const unknown: string[] = [];
-  const seenProduct = new Set<number>();
-
   for (const r of rows) {
     const product = r.articulo ? byArticle.get(r.articulo) : undefined;
     if (r.articulo && !product) unknown.push(`Artículo ${r.articulo}`);
-    if (product && !seenProduct.has(product.id)) {
-      seenProduct.add(product.id);
-      const patch: Partial<typeof products.$inferInsert> = {};
+    if (product) {
+      // El CSV trae una fila por variante: se toma el primer valor distinto al actual
+      const patch = productPatch.get(product.id) ?? {};
       const price = parseNumber(r.precio);
-      if (price !== null && price > 0 && price !== product.price) {
+      if (patch.price === undefined && price !== null && price > 0 && price !== product.price) {
         patch.price = price;
         changes.push({ kind: "precio", key: product.articleCode!, label: product.name, from: String(product.price), to: String(price) });
       }
-      if (r.nombre && r.nombre !== product.name) {
+      if (patch.name === undefined && r.nombre && r.nombre !== product.name) {
         patch.name = r.nombre;
         changes.push({ kind: "nombre", key: product.articleCode!, label: product.name, from: product.name, to: r.nombre });
       }
       const visible = parseBool(r.visible);
-      if (visible !== null && visible !== product.visible) {
+      if (patch.visible === undefined && visible === true && !product.visible && !product.hasImage) {
+        unknown.push(`Artículo ${product.articleCode}: no tiene fotos, sigue oculto`);
+      } else if (patch.visible === undefined && visible !== null && visible !== product.visible) {
         patch.visible = visible;
         changes.push({ kind: "visible", key: product.articleCode!, label: product.name, from: product.visible ? "sí" : "no", to: visible ? "sí" : "no" });
       }

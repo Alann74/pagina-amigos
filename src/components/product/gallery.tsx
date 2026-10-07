@@ -39,10 +39,16 @@ export function Gallery({ images, name }: { images: GalleryImage[]; name: string
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const [shownImages, setShownImages] = useState(images);
+
+  // Al cambiar de color cambian las fotos: se vuelve a la primera
+  if (shownImages !== images) {
+    setShownImages(images);
+    setActive(0);
+  }
 
   useEffect(() => {
     trackRef.current?.scrollTo({ left: 0 });
-    setActive(0);
   }, [images]);
 
   useEffect(() => {
