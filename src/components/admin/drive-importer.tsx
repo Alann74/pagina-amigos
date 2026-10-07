@@ -40,15 +40,17 @@ export function DriveImporter({ status, looks }: { status: PhotoStatus[]; looks:
     const worker = async () => {
       while (queue.length && !stopRef.current) {
         const item = queue.shift()!;
-        // Cada llamada procesa unas pocas fotos; se repite hasta terminar el artículo
-        for (let round = 0; round < 20 && !stopRef.current; round++) {
+        const failed: string[] = [];
+        // Cada llamada procesa unas pocas fotos; se repite hasta terminar el artículo (salteando las que fallaron)
+        for (let round = 0; round < 30 && !stopRef.current; round++) {
           setProgress({ done, total, current: `${item.article} · ${item.name ?? ""}` });
           try {
-            const r = await post({ action: "article", article: item.article });
+            const r = await post({ action: "article", article: item.article, skip: failed });
             done += r.imported + (r.errors?.length ?? 0);
             if (r.errors?.length) setErrors((e) => [...e, ...r.errors]);
+            if (r.failed?.length) failed.push(...r.failed);
             setProgress({ done, total, current: `${item.article} · ${item.name ?? ""}` });
-            if (!r.remaining || r.imported === 0) break;
+            if (!r.remaining || r.imported + (r.failed?.length ?? 0) === 0) break;
           } catch (e) {
             setErrors((list) => [...list, `${item.article}: ${e instanceof Error ? e.message : "error"}`]);
             break;

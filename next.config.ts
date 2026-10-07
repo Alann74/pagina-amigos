@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
     qualities: [75],
   },
   serverExternalPackages: ["sharp"],
+  // Archivos que lee el botón "Preparar base de datos" de /admin/instalacion
+  outputFileTracingIncludes: {
+    "/api/admin/setup": ["./drizzle/**/*", "./data/pos-productos.csv"],
+  },
   turbopack: {
     rules: {
       "*.css": {

@@ -7,7 +7,7 @@ import { importArticlePhotos, applyDrivePhoto } from "@/lib/drive-import";
 export const maxDuration = 60;
 
 const bodySchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("article"), article: z.string().regex(/^\d{4,6}$/) }),
+  z.object({ action: z.literal("article"), article: z.string().regex(/^\d{4,6}$/), skip: z.array(z.string().max(100)).max(300).optional() }),
   z.object({ action: z.literal("use"), target: z.enum(["hero", "hero2", "look"]), driveId: z.string().min(10).max(100), codes: z.array(z.string()).max(10) }),
 ]);
 
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   const body = parsed.data;
   try {
     if (body.action === "article") {
-      const result = await importArticlePhotos(body.article);
+      const result = await importArticlePhotos(body.article, 3, body.skip ?? []);
       if (result.imported) revalidateTag(TAGS.catalog, { expire: 0 });
       return Response.json(result);
     }

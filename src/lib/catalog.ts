@@ -63,6 +63,13 @@ export type CatalogCategory = {
   productCount: number;
 };
 
+/** Falta DATABASE_URL o todavía no se crearon las tablas (se prepara desde /admin/instalacion). */
+export function isDatabaseNotReady(error: unknown): boolean {
+  const e = error as { code?: string; message?: string; cause?: { code?: string } } | null;
+  const code = e?.code ?? e?.cause?.code;
+  return code === "42P01" || /DATABASE_URL/.test(e?.message ?? "");
+}
+
 function deepMerge<T>(base: T, patch: unknown): T {
   if (!patch || typeof patch !== "object" || Array.isArray(patch)) return base;
   const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
@@ -82,7 +89,8 @@ async function readSetting<T>(key: string, fallback: T): Promise<T> {
     const row = await db.query.settings.findFirst({ where: eq(settings.key, key) });
     return row ? deepMerge(fallback, row.value) : fallback;
   } catch (error) {
-    console.error(`[settings] no se pudo leer "${key}"`, error);
+    if (!isDatabaseNotReady(error)) throw error;
+    console.error(`[settings] la base todavía no está lista ("${key}"): se usan los valores por defecto`);
     return fallback;
   }
 }
@@ -112,6 +120,18 @@ export async function getCategories(): Promise<CatalogCategory[]> {
   "use cache";
   cacheLife("hours");
   cacheTag(TAGS.catalog);
+  try {
+    return await readCategories();
+  } catch (error) {
+    // Base vacía o sin configurar (primer deploy): la tienda se muestra vacía en vez de romperse.
+    // Cualquier otro error se propaga para no guardar en caché un catálogo vacío por un corte momentáneo.
+    if (!isDatabaseNotReady(error)) throw error;
+    console.error("[catalogo] la base todavía no está lista (categorías)");
+    return [];
+  }
+}
+
+async function readCategories(): Promise<CatalogCategory[]> {
   const rows = await db
     .select({
       id: categories.id,
@@ -137,6 +157,16 @@ export async function getCatalog(): Promise<CatalogProduct[]> {
   "use cache";
   cacheLife("hours");
   cacheTag(TAGS.catalog);
+  try {
+    return await readCatalog();
+  } catch (error) {
+    if (!isDatabaseNotReady(error)) throw error;
+    console.error("[catalogo] la base todavía no está lista (productos)");
+    return [];
+  }
+}
+
+async function readCatalog(): Promise<CatalogProduct[]> {
 
   const config = await getSettings();
   const [productRows, imageRows, variantRows] = await Promise.all([

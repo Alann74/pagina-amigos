@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { AdminLoading, AdminTitle, Section, Stat, StatusBadge } from "@/components/admin/ui";
 import { adminGate, getDashboard } from "@/lib/admin-data";
+import { isDatabaseNotReady } from "@/lib/catalog";
 import { formatDate, formatOrderNumber, formatPrice } from "@/lib/format";
 
 export default function AdminHome() {
@@ -17,7 +18,20 @@ export default function AdminHome() {
 
 async function Dashboard() {
   await adminGate();
-  const d = await getDashboard();
+  const d = await getDashboard().catch((error) => {
+    if (isDatabaseNotReady(error)) return null;
+    throw error;
+  });
+  if (!d) {
+    return (
+      <div className="border border-ink p-6">
+        <p className="text-[15px]">La base de datos todavía no está preparada.</p>
+        <Link href="/admin/instalacion" className="btn btn-primary mt-5">
+          Ir a Instalación
+        </Link>
+      </div>
+    );
+  }
   return (
     <>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

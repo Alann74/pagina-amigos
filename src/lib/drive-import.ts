@@ -17,14 +17,27 @@ const MAX_DOWNLOAD = 40 * 1024 * 1024;
 
 export async function downloadDriveFile(id: string): Promise<Buffer> {
   if (!/^[\w-]{10,}$/.test(id)) throw new Error("ID de Drive inválido");
-  const url = `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`;
-  const res = await fetch(url, { redirect: "follow", cache: "no-store", signal: AbortSignal.timeout(30_000) });
-  if (!res.ok) throw new Error(`Drive respondió ${res.status}`);
-  const type = res.headers.get("content-type") ?? "";
-  if (type.includes("text/html")) throw new Error("Drive no devolvió la imagen (revisá que la carpeta siga compartida con “cualquiera con el enlace”)");
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > MAX_DOWNLOAD) throw new Error("Archivo demasiado grande");
-  return buf;
+  const urls = [`https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`, `https://drive.google.com/uc?export=download&id=${id}`];
+  let lastError = "";
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { redirect: "follow", cache: "no-store", signal: AbortSignal.timeout(30_000) });
+      if (!res.ok) {
+        lastError = `Drive respondió ${res.status}`;
+        continue;
+      }
+      if ((res.headers.get("content-type") ?? "").includes("text/html")) {
+        lastError = "Drive no devolvió la imagen (revisá que la carpeta siga compartida con “cualquiera con el enlace”)";
+        continue;
+      }
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length > MAX_DOWNLOAD) throw new Error("Archivo demasiado grande");
+      return buf;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : "Error de descarga";
+    }
+  }
+  throw new Error(lastError || "No se pudo descargar de Drive");
 }
 
 export type PhotoStatus = { article: string; productId: number | null; name: string | null; total: number; imported: number; visible: boolean };
@@ -64,21 +77,24 @@ export async function getPhotoStatus(): Promise<PhotoStatus[]> {
  * Importa hasta `limit` fotos pendientes de un artículo. Es idempotente: si se corta, se vuelve a correr
  * y sigue donde quedó (no duplica). El orden final respeta el del cruce (principal, hover, resto).
  */
-export async function importArticlePhotos(article: string, limit = 3) {
+export async function importArticlePhotos(article: string, limit = 3, skip: string[] = []) {
   const list = PHOTO_MATCHES[article];
-  if (!list) return { imported: 0, remaining: 0, errors: [`El artículo ${article} no tiene fotos en Drive`] };
+  if (!list) return { imported: 0, remaining: 0, errors: [`El artículo ${article} no tiene fotos en Drive`], failed: [] };
   const product = await db.query.products.findFirst({ where: eq(products.articleCode, article) });
-  if (!product) return { imported: 0, remaining: 0, errors: [`No hay producto con artículo ${article}`] };
+  if (!product) return { imported: 0, remaining: 0, errors: [`No hay producto con artículo ${article}`], failed: [] };
 
   const existing = await db.select({ driveFileId: productImages.driveFileId }).from(productImages).where(eq(productImages.productId, product.id));
   const done = new Set(existing.map((e) => e.driveFileId).filter(Boolean));
-  const pending = list.map((m, index) => ({ ...m, index })).filter((m) => !done.has(m.driveId));
+  // "skip": las que ya fallaron en esta pasada, para que una foto con problemas no frene a las demás
+  const skipped = new Set(skip);
+  const pending = list.map((m, index) => ({ ...m, index })).filter((m) => !done.has(m.driveId) && !skipped.has(m.driveId));
 
   const colorNames = [...new Set(list.map((m) => m.color).filter((c): c is string => Boolean(c)))];
   const colorRows = colorNames.length ? await db.select({ id: colors.id, name: colors.name }).from(colors).where(inArray(colors.name, colorNames)) : [];
   const colorId = new Map(colorRows.map((c) => [c.name, c.id]));
 
   const errors: string[] = [];
+  const failed: string[] = [];
   let imported = 0;
   for (const m of pending.slice(0, limit)) {
     try {
@@ -107,13 +123,14 @@ export async function importArticlePhotos(article: string, limit = 3) {
       imported++;
     } catch (e) {
       errors.push(`${m.title}: ${e instanceof Error ? e.message : "error"}`);
+      failed.push(m.driveId);
     }
   }
   // Si ya tiene foto y precio, queda publicado (salvo que alguien lo haya ocultado a mano después)
   if (imported > 0 && existing.length === 0 && product.price > 0) {
     await db.update(products).set({ visible: true }).where(and(eq(products.id, product.id)));
   }
-  return { imported, remaining: Math.max(0, pending.length - imported - errors.length), errors };
+  return { imported, remaining: Math.max(0, pending.length - imported - errors.length), errors, failed };
 }
 
 /** Looks (fotos "SET CON …" con dos o más artículos cargados) para elegir el bloque "Comprá el look". */

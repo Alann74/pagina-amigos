@@ -12,6 +12,7 @@ export const ADMIN_LINKS = [
   { href: "/admin/fotos", label: "Fotos" },
   { href: "/admin/configuracion", label: "Configuración" },
   { href: "/admin/arrepentimientos", label: "Arrepentimientos" },
+  { href: "/admin/instalacion", label: "Instalación" },
 ];
 
 export function AdminNavLinks({ active }: { active?: string | null }) {
