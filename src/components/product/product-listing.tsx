@@ -161,6 +161,7 @@ export function ProductListing({ products, emptyText = "No hay productos para mo
         </div>
       ) : (
         <>
+          <h2 className="sr-only">Productos</h2>
           <ul
             className={`grid gap-x-1 gap-y-8 px-1 pt-1 sm:gap-x-2 sm:px-2 lg:grid-cols-4 lg:gap-x-3 lg:gap-y-12 lg:px-3 ${cols === 1 ? "grid-cols-1" : "grid-cols-2"}`}
             data-testid="product-grid"

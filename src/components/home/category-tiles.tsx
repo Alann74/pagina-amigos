@@ -12,7 +12,7 @@ export function CategoryTiles({ tiles }: { tiles: Tile[] }) {
           <Link href={`/categoria/${t.slug}`} className="group block">
             <div className="relative aspect-[3/4] overflow-hidden bg-soft">
               {t.image ? (
-                <Image src={t.image} alt={t.name} fill sizes="(min-width: 1024px) 16vw, 44vw" className="object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
+                <Image src={t.image} alt="" fill sizes="(min-width: 1024px) 16vw, 44vw" className="object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
               ) : null}
             </div>
             <p className="nav-link mt-3 flex items-center justify-between">
