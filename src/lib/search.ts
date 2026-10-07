@@ -8,7 +8,8 @@ export type SearchEntry = {
   colors: string[];
   price: number;
   image: string | null;
-  hoverImage: string | null;
+  /** Fotos para deslizar en la tarjeta del listado (la primera es `image`) */
+  images: string[];
   soldOut: boolean;
   badge: string | null;
   sizes: string[];
