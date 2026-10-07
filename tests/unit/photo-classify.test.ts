@@ -64,3 +64,27 @@ test("huella: la misma foto sí, otro color o la espalda no", async () => {
   assert.equal(isSamePhoto(crudo, blanco), false);
   assert.equal(isSamePhoto(negro, espalda), false);
 });
+
+test("conjunto de dos artículos: prenda sola y a qué artículo va cada foto", async () => {
+  const flat = classifyPhoto("39001-39400 5_CHOCO.png");
+  assert.equal(flat?.kind, "catalogo");
+  assert.equal(flat?.order, 5);
+  assert.equal(classifyPhoto("39705 39417-4_NEGRO ESP.png")?.back, true);
+  assert.equal(classifyPhoto("39018-39419 3.png")?.dudosa, true);
+  assert.equal(classifyPhoto("39001-39400 1.jpg")?.kind, "look");
+  // sin número: después de las numeradas
+  assert.equal(classifyPhoto("39606 NEGRO ESP.png")?.order, 50);
+  const { photoBelongs, chosenMainPhoto } = await import("../../src/lib/photo-scope");
+  assert.equal(photoBelongs("39001-39400 3_CHOCO.png", "39001"), true);
+  assert.equal(photoBelongs("39001-39400 5_CHOCO.png", "39001"), false);
+  assert.equal(photoBelongs("Copia de 39001-39400 5_CHOCO.png", "39400"), true);
+  // SET CON: solo en el artículo principal
+  assert.equal(photoBelongs("__14.B-AP_37262_SET CON 37261_limpia.jpg", "37262"), true);
+  assert.equal(photoBelongs("__14.B-AP_37262_SET CON 37261_limpia.jpg", "37261"), false);
+  assert.equal(photoBelongs("__1.A-39700-21087 BIS_SET CON 39401 Y 39701_limpia.jpg", "39401"), false);
+  // revisadas a ojo: en la campera no va la foto donde solo se ven los jeans
+  assert.equal(photoBelongs("39864 39865 41.jpg", "39864"), false);
+  assert.equal(photoBelongs("39864 39865 41.jpg", "39865"), true);
+  assert.equal(photoBelongs("39603-2_BLANCO.png", "39603"), true);
+  assert.equal(chosenMainPhoto("39988"), "39988 1.png");
+});

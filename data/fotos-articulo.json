@@ -1,0 +1,46 @@
+{
+  "nota": "Revisado a ojo con las miniaturas de Drive (oct. 2026). 'solo': fotos de la prenda sola de un conjunto de dos artículos (el nombre trae los dos códigos) que muestran una sola de las prendas. 'fuera': fotos de conjunto donde no se ve la prenda de ese artículo. 'principal': la foto que va primero cuando la que queda primera por el nombre no es buena. Las fotos 'SET CON' van solo al artículo principal (el código antes de 'SET CON').",
+  "solo": {
+    "39001-39400 3_CHOCO.png": "39001",
+    "39001-39400 4_CHOCO ESP.png": "39001",
+    "39001-39400 5_CHOCO.png": "39400",
+    "39001-39400 6_CHOCO ESP.png": "39400",
+    "39018-39419 3.png": "39018",
+    "39018-39419 4.png": "39018",
+    "39018-39419 5.png": "39419",
+    "39018-39419 6.png": "39419",
+    "39093-39472 3_BLANCO.png": "39093",
+    "39093-39472 4_BLANCO ESP.png": "39093",
+    "39093-39472 5_BLANCO.png": "39472",
+    "39093-39472 6_BLANCO ESP.png": "39472",
+    "39705 39417-3_NEGRO.png": "39705",
+    "39705 39417-4_NEGRO ESP.png": "39705",
+    "39705 39417-5_NEGRO.png": "39417",
+    "39705 39417-6_NEGRO ESP.png": "39417",
+    "39705 39417-7_AZUL.png": "39705",
+    "39705 39417-8_AZUL.png": "39417",
+    "39705 39417-8_COBRE.png": "39705",
+    "39705 39417-9_COBRE.png": "39417"
+  },
+  "fuera": {
+    "38627": ["38627 39364 19.jpg", "38627 39364 24.jpg"],
+    "39091": ["39091 39474 14.jpg", "39091 39474 27.jpg"],
+    "39474": ["39091 39474 11.jpg"],
+    "39160": ["39160 39871 17.jpg", "39160 39871 23.jpg"],
+    "39871": ["39160 39871 14.jpg"],
+    "39164": ["39164 39863 24.jpg", "39164 39863 36.jpg", "39164 39863 38.jpg"],
+    "39863": ["39164 39863 28.jpg"],
+    "39195": ["39195 39888 39890 15.jpg", "39195 39888 39890 18.jpg"],
+    "39888": ["39195 39888 39890 9_limpia.jpg"],
+    "39890": ["39880 39890 3.jpg", "39880 39890 27.jpg", "39195 39888 39890 15.jpg", "39195 39888 39890 18.jpg"],
+    "39401": ["39700 39401 39701 27.jpg"],
+    "39700": ["39422 39700 18_limpia.jpg", "39422 39700 19.jpg", "39422 39700 21_limpia.jpg", "39700 39401 39701 47.jpg", "39700 39401 39701 48.jpg"],
+    "39703": ["39703 39412 5.jpg", "39703 39412 6.jpg"],
+    "39862": ["39987 39862 14.jpg"],
+    "39864": ["39864 39865 41.jpg"],
+    "39911": ["39911 6.jpg"]
+  },
+  "principal": {
+    "39988": "39988 1.png"
+  }
+}

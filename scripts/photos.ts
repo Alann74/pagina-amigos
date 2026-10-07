@@ -6,14 +6,18 @@ import { discoverDrivePhotos } from "../src/lib/drive-discovery";
 import { classificationReport } from "../src/lib/photo-analysis";
 import { liveCheck } from "../src/lib/live-check";
 import { checkAllProductPhotos } from "../src/lib/photo-check";
-import { backfillHashes, crossProductReport, removeDuplicatePhotos } from "../src/lib/photo-dedupe";
+import { backfillHashes, crossProductReport, removeDuplicatePhotos, removeForeignPhotos } from "../src/lib/photo-dedupe";
 import { syncPhotoOrder } from "../src/lib/photo-order";
+import { refitModelPhotos } from "../src/lib/photo-refit";
+import { purgeDeferredMedia } from "../src/lib/media";
 
 const BUDGET = Number(process.env.PHOTO_IMPORT_BUDGET_MS ?? 14 * 60_000);
 
 async function main() {
   if (!process.env.DATABASE_URL) return console.warn("[fotos] Sin DATABASE_URL: no se revisan fotos");
   const t0 = Date.now();
+  // Lo que dejó de usarse en el deploy anterior (ya no lo muestra la versión publicada)
+  console.log(`[fotos] Fotos viejas borradas: ${await purgeDeferredMedia().catch(() => 0)}`);
   const campaign = await migrateCampaignToDb().catch((e) => {
     console.error("[fotos] Portada/look:", e);
     return [];
@@ -40,7 +44,13 @@ async function main() {
   console.log(`[fotos] Huellas calculadas: ${await backfillHashes()}`);
   const removed = await removeDuplicatePhotos();
   console.log(`[fotos] Repetidas quitadas: ${removed.length}`);
+  const foreign = await removeForeignPhotos();
+  console.log(`[fotos] Fotos de otra prenda quitadas: ${foreign.length}`);
   console.log(`[fotos] Orden: ${await syncPhotoOrder()} fotos reordenadas`);
+  // Fotos con modelo que quedaron con bandas blancas: se vuelven a encuadrar desde el original de Drive
+  const refit = await refitModelPhotos(Math.max(60_000, BUDGET - (Date.now() - t0))).catch((e) => ({ error: String(e) }));
+  console.log("[fotos] Encuadre:", JSON.stringify(refit));
+  await logImport({ paso: "encuadre", ...refit });
   await classificationReport().catch((e) => console.error("[fotos] Análisis:", e));
   const cross = await crossProductReport();
   console.log(`[fotos] Misma foto en artículos distintos (a revisar): ${cross.total}`);

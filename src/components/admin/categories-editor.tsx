@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createCategory, updateCategory } from "@/app/admin/actions";
-import { ImageField } from "@/components/admin/image-field";
 import { CheckboxRow, FeedbackText, useAction } from "@/components/admin/ui";
 
 type Cat = { id: number; slug: string; name: string; sortOrder: number; visible: boolean; featured: boolean; imageUrl: string | null; sizeGuide: string; productCount: number };
@@ -40,13 +39,7 @@ function CategoryRow({ cat }: { cat: Cat }) {
         </div>
         <div className="flex flex-wrap gap-x-6 sm:col-span-3">
           <CheckboxRow checked={c.visible} onChange={(v) => setC({ ...c, visible: v })} label="Visible en el menú" />
-          <CheckboxRow checked={c.featured} onChange={(v) => setC({ ...c, featured: v })} label="Destacada en la home" />
         </div>
-        {c.featured ? (
-          <div className="sm:col-span-3">
-            <ImageField label="Foto de la categoría (home)" name={`categoria-${c.slug}`} value={c.imageUrl} onChange={(url) => setC({ ...c, imageUrl: url })} hint="Si no hay, se usa la foto de un producto." />
-          </div>
-        ) : null}
       </div>
       <div className="flex items-center gap-3">
         <button

@@ -1,8 +1,10 @@
 import { eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { media, productImages, products, settings } from "@/db/schema";
-import { colorDistance, hashDistance, imageHash, isSamePhoto } from "@/lib/media";
+import { colorDistance, deferMediaDelete, hashDistance, imageHash, isSamePhoto } from "@/lib/media";
 import { baseTitle, classifyPhoto, sameShotKey, type PhotoKind } from "@/lib/photo-classify";
+import { photoBelongs } from "@/lib/photo-scope";
+import confirmed from "../../data/fotos-repetidas-confirmadas.json";
 
 // Fotos repetidas: la misma toma puede estar en Drive con dos nombres (ej. "39606 1.jpg" y
 // "39606 1_limpia.jpg", o "__21.A-39093_SET CON 39472" y "__21.B-39472_SET CON 39093").
@@ -67,14 +69,20 @@ function better(a: Img, b: Img): Img {
   return a;
 }
 
-type Removal = { article: string | null; quitada: string | null; queda: string | null; motivo: "nombre" | "contenido"; forma: number | null; color: number | null };
+type Removal = { article: string | null; quitada: string | null; queda: string | null; motivo: "nombre" | "revisada" | "contenido"; forma: number | null; color: number | null };
 
-/** Dos fotos del mismo producto con el mismo nombre ("Copia de …", otra carpeta, con y sin "_limpia") son la misma toma. */
+/**
+ * Dos fotos del mismo producto con el mismo nombre ("Copia de …", otra carpeta, con y sin "_limpia") son la misma toma.
+ * (No se mira la huella: la misma foto importada con otro encuadre, entera o recortada, da huellas distintas.)
+ */
 function sameName(a: Img, b: Img): boolean {
-  if (!a.title || !b.title || sameShotKey(a.title) !== sameShotKey(b.title)) return false;
-  // Resguardo: si las huellas dicen que son fotos muy distintas, no se toca
-  return !(a.hash?.startsWith("v2:") && b.hash?.startsWith("v2:") && hashDistance(a.hash, b.hash) > 90);
+  return Boolean(a.title && b.title && sameShotKey(a.title) === sameShotKey(b.title));
 }
+
+/** Repetidas con otro nombre, revisadas a ojo: data/fotos-repetidas-confirmadas.json */
+// (por toma: vale también para sus copias "Copia de …" o en otro formato)
+const CONFIRMED = new Set(confirmed.pares.map((p) => `${p.articulo}|${sameShotKey(p.queda)}|${sameShotKey(p.quitar)}`));
+const isConfirmed = (article: string | null, keep: Img, out: Img) => CONFIRMED.has(`${article}|${sameShotKey(keep.title ?? "")}|${sameShotKey(out.title ?? "")}`);
 
 /**
  * Saca las fotos repetidas de cada producto (deja una) y las anota para que no se vuelvan a importar.
@@ -92,31 +100,38 @@ export async function removeDuplicatePhotos() {
   const excluded = await getExcludedDriveIds();
   const drop = async (img: Img) => {
     await db.delete(productImages).where(eq(productImages.id, img.id));
-    if (img.key) {
-      const still = await db.select({ id: productImages.id }).from(productImages).where(eq(productImages.blobPath, img.key)).limit(1);
-      if (still.length === 0) await db.delete(media).where(eq(media.key, img.key));
-    }
+    if (img.key) await deferMediaDelete([img.key]);
     if (img.article && img.driveFileId) excluded[img.article] = [...new Set([...(excluded[img.article] ?? []), img.driveFileId])];
   };
   for (const list of byProduct.values()) {
     const kept: Img[] = [];
     for (const img of [...list].sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)) {
       const byName = kept.find((k) => sameName(k, img));
-      const byContent = byName ? undefined : kept.find((k) => k.hash && img.hash && isSamePhoto(k.hash, img.hash));
-      const twin = byName ?? byContent;
+      const byList = byName ? undefined : kept.find((k) => isConfirmed(img.article, k, img) || isConfirmed(img.article, img, k));
+      const byContent = byName || byList ? undefined : kept.find((k) => k.hash && img.hash && isSamePhoto(k.hash, img.hash));
+      const twin = byName ?? byList ?? byContent;
       if (!twin) {
         kept.push(img);
         continue;
       }
-      const keep = better(twin, img);
-      const out = keep === twin ? img : twin;
+      let keep = better(twin, img);
+      let out = keep === twin ? img : twin;
+      // Revisada a ojo: queda la que dice la lista
+      if (byList && isConfirmed(img.article, out, keep)) [keep, out] = [out, keep];
       const both = Boolean(out.hash?.startsWith("v2:") && keep.hash?.startsWith("v2:"));
-      const entry: Removal = { article: out.article, quitada: out.title, queda: keep.title, motivo: byName ? "nombre" : "contenido", forma: both ? hashDistance(out.hash!, keep.hash!) : null, color: both ? colorDistance(out.hash!, keep.hash!) : null };
+      const entry: Removal = {
+        article: out.article,
+        quitada: out.title,
+        queda: keep.title,
+        motivo: byName ? "nombre" : byList ? "revisada" : "contenido",
+        forma: both ? hashDistance(out.hash!, keep.hash!) : null,
+        color: both ? colorDistance(out.hash!, keep.hash!) : null,
+      };
       if (byContent && !applyContent) {
         proposed.push(entry);
         continue;
       }
-      if (keep !== twin) kept[kept.indexOf(twin)] = img;
+      kept[kept.indexOf(twin)] = keep;
       await drop(out);
       removed.push(entry);
     }
@@ -128,6 +143,29 @@ export async function removeDuplicatePhotos() {
     const log = await db.query.settings.findFirst({ where: eq(settings.key, "fotos-repetidas-quitadas") });
     const value = { fecha: new Date().toISOString(), quitadas: [...(((log?.value as { quitadas?: unknown[] })?.quitadas as Removal[]) ?? []), ...removed] };
     await db.insert(settings).values({ key: "fotos-repetidas-quitadas", value }).onConflictDoUpdate({ target: settings.key, set: { value } });
+  }
+  return removed;
+}
+
+/**
+ * Saca de cada producto las fotos que muestran otra prenda (conjuntos: ver photo-scope y
+ * data/fotos-articulo.json) y las anota para que no se vuelvan a importar.
+ */
+export async function removeForeignPhotos() {
+  const excluded = await getExcludedDriveIds();
+  const removed: { article: string | null; foto: string | null }[] = [];
+  for (const img of await loadImages()) {
+    if (!img.article || !img.title || photoBelongs(img.title, img.article)) continue;
+    await db.delete(productImages).where(eq(productImages.id, img.id));
+    if (img.key) await deferMediaDelete([img.key]);
+    if (img.driveFileId) excluded[img.article] = [...new Set([...(excluded[img.article] ?? []), img.driveFileId])];
+    removed.push({ article: img.article, foto: img.title });
+  }
+  if (removed.length) {
+    await db.insert(settings).values({ key: EXCLUDED_KEY, value: excluded }).onConflictDoUpdate({ target: settings.key, set: { value: excluded } });
+    const log = await db.query.settings.findFirst({ where: eq(settings.key, "fotos-otra-prenda-quitadas") });
+    const value = { fecha: new Date().toISOString(), quitadas: [...(((log?.value as { quitadas?: unknown[] })?.quitadas as typeof removed) ?? []), ...removed] };
+    await db.insert(settings).values({ key: "fotos-otra-prenda-quitadas", value }).onConflictDoUpdate({ target: settings.key, set: { value } });
   }
   return removed;
 }

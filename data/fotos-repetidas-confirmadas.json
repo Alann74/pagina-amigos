@@ -1,0 +1,285 @@
+{
+  "nota": "Misma foto con otro nombre, revisada a ojo (contacto con las miniaturas de Drive). El deploy saca la de 'quitar' si el producto tiene la de 'queda'. Frente y espalda de la misma prenda o el mismo modelo en otro color NO son repetidas.",
+  "pares": [
+    {
+      "articulo": "39215",
+      "queda": "39215_C8_P28_LIMPIA.jpg",
+      "quitar": "39215-1.jpg"
+    },
+    {
+      "articulo": "39427",
+      "queda": "39427_C8_P22_LIMPIA.jpg",
+      "quitar": "39427-1.jpg"
+    },
+    {
+      "articulo": "39949",
+      "queda": "39949_C8_P12_LIMPIA.jpg",
+      "quitar": "39949-1.jpg"
+    },
+    {
+      "articulo": "39951",
+      "queda": "39951_C8_P11_LIMPIA.jpg",
+      "quitar": "39951-1.jpg"
+    },
+    {
+      "articulo": "39091",
+      "queda": "39091-39474_C8_P01_LIMPIA.jpg",
+      "quitar": "39091 39474 4.jpg"
+    },
+    {
+      "articulo": "39474",
+      "queda": "39091-39474_C8_P01_LIMPIA.jpg",
+      "quitar": "39091 39474 4.jpg"
+    },
+    {
+      "articulo": "39472",
+      "queda": "__21.B-39472_SET CON 39093_limpia.jpg",
+      "quitar": "__21.A-39093_SET CON 39472_limpia.jpg"
+    },
+    {
+      "articulo": "39093",
+      "queda": "__21.A-39093_SET CON 39472_limpia.jpg",
+      "quitar": "__21.B-39472_SET CON 39093_limpia.jpg"
+    },
+    {
+      "articulo": "39886",
+      "queda": "39886 2_limpia_2.jpg",
+      "quitar": "39886 2_VISTA_ADICIONAL.jpg"
+    },
+    {
+      "articulo": "39165",
+      "queda": "39165-39880_C9_P01_LIMPIA.jpg",
+      "quitar": "39881 39165 23.jpg"
+    },
+    {
+      "articulo": "39165",
+      "queda": "39165_C9_P06_LIMPIA.jpg",
+      "quitar": "39881 39165 18.jpg"
+    },
+    {
+      "articulo": "39704",
+      "queda": "39704_C8_P16_LIMPIA.jpg",
+      "quitar": "39704 1.jpg"
+    },
+    {
+      "articulo": "39862",
+      "queda": "39862 1.png",
+      "quitar": "39987 39862 9.jpg"
+    },
+    {
+      "articulo": "39880",
+      "queda": "39880_C8_P38_LIMPIA.jpg",
+      "quitar": "39880 39890 3.jpg"
+    },
+    {
+      "articulo": "39889",
+      "queda": "39889_C8_P39_LIMPIA.jpg",
+      "quitar": "39889 1.jpg"
+    },
+    {
+      "articulo": "39601",
+      "queda": "39601_C8_P06_LIMPIA.png",
+      "quitar": "39601-1.jpg"
+    },
+    {
+      "articulo": "39475",
+      "queda": "39475_C8_P23_LIMPIA.jpg",
+      "quitar": "39475-1.jpg"
+    },
+    {
+      "articulo": "39198",
+      "queda": "__23-39198_limpia.jpg",
+      "quitar": "39198.jpg"
+    },
+    {
+      "articulo": "39925",
+      "queda": "__1-39925-35011_limpia.jpg",
+      "quitar": "39925-1.png"
+    },
+    {
+      "articulo": "39092",
+      "queda": "__27-39092_limpia.jpg",
+      "quitar": "39092 1.jpg"
+    },
+    {
+      "articulo": "39605",
+      "queda": "__19-39605_limpia.jpg",
+      "quitar": "39605-1.jpg"
+    },
+    {
+      "articulo": "39935",
+      "queda": "__14-39935-35088_limpia.jpg",
+      "quitar": "39935-1.jpg"
+    },
+    {
+      "articulo": "39365",
+      "queda": "39365_C8_P25_LIMPIA.jpg",
+      "quitar": "39365-1.jpg"
+    },
+    {
+      "articulo": "39932",
+      "queda": "__10-39932-35058_limpia.jpg",
+      "quitar": "39932-1.jpg"
+    },
+    {
+      "articulo": "37262",
+      "queda": "__14.B-AP_37262_SET CON 37261_limpia.jpg",
+      "quitar": "37262 1.png"
+    },
+    {
+      "articulo": "37263",
+      "queda": "__7-AP_37263_limpia.png",
+      "quitar": "37263 1.jpg"
+    },
+    {
+      "articulo": "37672",
+      "queda": "__15-AP_37672_limpia.png",
+      "quitar": "37672 1.png"
+    },
+    {
+      "articulo": "37676",
+      "queda": "__2-AP_37676_limpia.png",
+      "quitar": "37676 1.png"
+    },
+    {
+      "articulo": "38682",
+      "queda": "__42-38682_limpia.jpg",
+      "quitar": "38682-1.png"
+    },
+    {
+      "articulo": "38699",
+      "queda": "__23-38699_limpia.jpg",
+      "quitar": "38699 1.png"
+    },
+    {
+      "articulo": "39003",
+      "queda": "__3-39003-35044_limpia.jpg",
+      "quitar": "39003-1.png"
+    },
+    {
+      "articulo": "39004",
+      "queda": "__4-39004-33094_limpia.jpg",
+      "quitar": "39004-1.png"
+    },
+    {
+      "articulo": "39005",
+      "queda": "__1-39005-33028_limpia.jpg",
+      "quitar": "39005 1.png"
+    },
+    {
+      "articulo": "39012",
+      "queda": "__7-39012-35076_limpia.jpg",
+      "quitar": "39012-1.jpg"
+    },
+    {
+      "articulo": "39013",
+      "queda": "__22-39013-31004_limpia.jpg",
+      "quitar": "39013 1.png"
+    },
+    {
+      "articulo": "39017",
+      "queda": "__9-39017-35098_limpia.jpg",
+      "quitar": "39017-1.png"
+    },
+    {
+      "articulo": "39188",
+      "queda": "__12-39188_limpia.jpg",
+      "quitar": "39188.jpg"
+    },
+    {
+      "articulo": "39200",
+      "queda": "__1-39200-35045_limpia.png",
+      "quitar": "39200-1.png"
+    },
+    {
+      "articulo": "39201",
+      "queda": "__13-39201-30008_limpia.png",
+      "quitar": "39201-1.png"
+    },
+    {
+      "articulo": "39202",
+      "queda": "__4-39202-31117_limpia.png",
+      "quitar": "39202 1.jpg"
+    },
+    {
+      "articulo": "39204",
+      "queda": "__14-39204-35084_limpia.png",
+      "quitar": "39204 1.jpg"
+    },
+    {
+      "articulo": "39269",
+      "queda": "39269_C9_P16_LIMPIA.jpg",
+      "quitar": "39269 1.jpg"
+    },
+    {
+      "articulo": "39366",
+      "queda": "39366_C8_P26_LIMPIA.jpg",
+      "quitar": "39366-1.jpg"
+    },
+    {
+      "articulo": "39403",
+      "queda": "__2-39403-35042_limpia.png",
+      "quitar": "39403-1.jpg"
+    },
+    {
+      "articulo": "39404",
+      "queda": "__3-39404-34030_limpia.png",
+      "quitar": "39404-1.png"
+    },
+    {
+      "articulo": "39410",
+      "queda": "__1-39410-35072_limpia.png",
+      "quitar": "39410-1.jpg"
+    },
+    {
+      "articulo": "39602",
+      "queda": "39602_C8_P07_LIMPIA.png",
+      "quitar": "39602-1.jpg"
+    },
+    {
+      "articulo": "39603",
+      "queda": "__7-39603_limpia.jpg",
+      "quitar": "39603-1.jpg"
+    },
+    {
+      "articulo": "39902",
+      "queda": "__1-39902-34006_limpia.jpg",
+      "quitar": "39902-1.png"
+    },
+    {
+      "articulo": "39917",
+      "queda": "__12-39917-28097_limpia.jpg",
+      "quitar": "39917-1.png"
+    },
+    {
+      "articulo": "39926",
+      "queda": "__2-39926-33012_limpia.jpg",
+      "quitar": "39926 1.png"
+    },
+    {
+      "articulo": "39981",
+      "queda": "__46-39981_limpia.jpg",
+      "quitar": "39981 1.png"
+    },
+    {
+      "articulo": "39982",
+      "queda": "__17-39982_limpia.jpg",
+      "quitar": "39982 1.png"
+    },
+    {
+      "articulo": "39989",
+      "queda": "__49-39989_limpia.jpg",
+      "quitar": "39989 1.png"
+    },
+    {
+      "articulo": "39991",
+      "queda": "__50-39991_limpia.jpg",
+      "quitar": "39991-1.png"
+    },
+    {
+      "articulo": "39364",
+      "queda": "39364_C8_P24_LIMPIA.jpg",
+      "quitar": "38627 39364 19.jpg"
+    }
+  ]
+}

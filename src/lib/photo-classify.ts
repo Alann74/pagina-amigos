@@ -47,12 +47,25 @@ export function classifyPhoto(rawTitle: string): ClassifiedPhoto | null {
     const colorRaw = cat[3]?.trim() ?? null;
     const color = colorRaw ? (COLOR_FIX[colorRaw] ?? colorRaw) : null;
     const back = Boolean(cat[4]);
-    const order = cat[2] ? Number(cat[2]) : 0;
+    // Sin número ("39606 NEGRO ESP"): después de las numeradas
+    const order = cat[2] ? Number(cat[2]) : 50;
     // JPG numerado sin color ("39606 1.jpg"): toma de la sesión de fotos, con modelo
     if (ext !== "png" && !color && !back) return { kind: "modelo", order, color: null, back: false, codes, primary };
     // PNG numerado sin color ("39405-1.png"): en el catálogo es la foto con la modelo; se confirma mirándola
     if (!color && !back) return { kind: "modelo", order, color: null, back: false, codes, primary, dudosa: true };
     return { kind: "catalogo", order, color, back, codes, primary };
+  }
+  // Prenda sola de un conjunto de dos artículos: "39001-39400 3_CHOCO", "39705 39417-4_NEGRO ESP"
+  // (a qué artículo va cada una está en data/fotos-articulo.json)
+  const pair = setPart === undefined && !/limpia/i.test(clean) ? clean.match(/^\d{5}[- ]\d{5}[- ](\d{1,2})(?:[_ ]([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ]*?))?( ESP)?$/) : null;
+  if (pair) {
+    const colorRaw = pair[2]?.trim() ?? null;
+    const color = colorRaw ? (COLOR_FIX[colorRaw] ?? colorRaw) : null;
+    const back = Boolean(pair[3]);
+    const order = Number(pair[1]);
+    if (color || back) return { kind: "catalogo", order, color, back, codes, primary };
+    // PNG numerada sin color ("39018-39419 3.png"): puede ser la prenda sola o la modelo; se mira
+    if (ext === "png") return { kind: "look", order, color: null, back: false, codes, primary, dudosa: true };
   }
   // Varias prendas en la foto: conjunto con modelo
   if (codes.length > 1) {

@@ -1,7 +1,7 @@
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import sharp from "sharp";
 import { db } from "@/db";
-import { media } from "@/db/schema";
+import { media, productImages, settings } from "@/db/schema";
 
 // Fotos guardadas en la base: una versión grande por foto. La web las pide por /m/<clave>-w800.webp,
 // /m/<clave>-share.jpg, etc. (ver src/app/m/[...path]/route.ts).
@@ -87,4 +87,29 @@ export async function deleteMedia(keys: string[]): Promise<void> {
 export function mediaKeyFromUrl(url: string): string | null {
   if (!url.startsWith(MEDIA_PREFIX)) return null;
   return url.slice(MEDIA_PREFIX.length).replace(/-(w\d+\.webp|share\.jpg)$/, "");
+}
+
+const DEFERRED = "fotos-a-borrar";
+
+/**
+ * Fotos que dejaron de usarse en el deploy: se borran recién en el próximo, porque mientras se arma la
+ * versión nueva la publicada todavía las muestra.
+ */
+export async function deferMediaDelete(keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, DEFERRED) });
+  const value = { claves: [...new Set([...(((row?.value as { claves?: string[] }) ?? {}).claves ?? []), ...keys])] };
+  await db.insert(settings).values({ key: DEFERRED, value }).onConflictDoUpdate({ target: settings.key, set: { value } });
+}
+
+/** Borra las fotos que quedaron sin usar en el deploy anterior (las que ningún producto volvió a usar). */
+export async function purgeDeferredMedia(): Promise<number> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, DEFERRED) });
+  const keys = ((row?.value as { claves?: string[] }) ?? {}).claves ?? [];
+  if (keys.length === 0) return 0;
+  const used = new Set((await db.select({ k: productImages.blobPath }).from(productImages).where(inArray(productImages.blobPath, keys))).map((r) => r.k));
+  const gone = keys.filter((k) => !used.has(k));
+  for (let i = 0; i < gone.length; i += 200) await db.delete(media).where(inArray(media.key, gone.slice(i, i + 200)));
+  await db.delete(settings).where(eq(settings.key, DEFERRED));
+  return gone.length;
 }

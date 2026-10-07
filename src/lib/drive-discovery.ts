@@ -4,6 +4,7 @@ import { products, settings } from "@/db/schema";
 import { listPublicFolder, type DriveEntry } from "@/lib/drive-folder";
 import type { DriveMatch } from "@/lib/drive-import";
 import { baseTitle, classifyPhoto, compareRank, photoRank, sameShotKey } from "@/lib/photo-classify";
+import { photoBelongs } from "@/lib/photo-scope";
 
 // Búsqueda de fotos en las carpetas de Drive de Temporada 3 (compartidas con "cualquiera con el enlace").
 // Cada foto va a los artículos cuyo código figura en el nombre del archivo; las repetidas por nombre se
@@ -63,7 +64,8 @@ export async function discoverDrivePhotos(): Promise<Discovery> {
   for (const f of byShot.values()) {
     const c = classifyPhoto(f.title);
     if (!c) continue;
-    for (const code of c.codes.filter((x) => known.has(x))) {
+    // Solo a los artículos que la foto muestra (conjuntos: ver photo-scope)
+    for (const code of c.codes.filter((x) => known.has(x) && photoBelongs(f.title, x))) {
       const m: DriveMatch = { driveId: f.id, title: f.title, kind: c.kind, color: c.color, back: c.back, look: c.codes.length > 1 ? c.codes.filter((x) => known.has(x)) : undefined };
       perArticle.set(code, [...(perArticle.get(code) ?? []), { m, rank: photoRank(c, code) }]);
     }

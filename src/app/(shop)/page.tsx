@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CategoryTiles, type Tile } from "@/components/home/category-tiles";
 import { Hero } from "@/components/home/hero";
 import { SectionHeader } from "@/components/home/section-header";
 import { ShopTheLook } from "@/components/home/shop-the-look";
 import { ProductGrid } from "@/components/product/product-grid";
-import { getBestSellerIds, getCatalog, getCategories, getLookSettings, getProductsByIds, getSettings } from "@/lib/catalog";
+import { getBestSellerIds, getCatalog, getLookSettings, getProductsByIds, getSettings } from "@/lib/catalog";
 import { toEntry } from "@/lib/catalog-entry";
 import { stablePick } from "@/lib/complements";
 import { toClientProduct } from "@/lib/product-client";
@@ -27,23 +26,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [settings, catalog, categories, look, bestIds] = await Promise.all([
+  const [settings, catalog, look, bestIds] = await Promise.all([
     getSettings(),
     getCatalog(),
-    getCategories(),
     getLookSettings(),
     getBestSellerIds(8),
   ]);
   const withImages = catalog.filter((p) => p.images.length > 0 && !p.soldOut);
-
-  // Categorías destacadas (las marcadas en el admin; si no hay, las que más productos tienen)
-  const featuredCats = categories.filter((c) => c.featured && c.productCount > 0);
-  const catSource = (featuredCats.length >= 3 ? featuredCats : [...categories].sort((a, b) => b.productCount - a.productCount)).slice(0, 6);
-  const tiles: Tile[] = catSource.map((c) => ({
-    slug: c.slug,
-    name: c.name,
-    image: c.imageUrl ?? withImages.find((p) => p.categorySlug === c.slug)?.images[0]?.url ?? null,
-  }));
 
   const newest = [...withImages].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 8);
 
@@ -63,15 +52,8 @@ export default async function HomePage() {
     <>
       <Hero hero={settings.hero} fallbackImages={heroImages} />
 
-      {tiles.length > 0 ? (
-        <section className="pt-14 sm:pt-20" aria-label="Categorías destacadas">
-          <SectionHeader title="Categorías" href="/productos" />
-          <CategoryTiles tiles={tiles} />
-        </section>
-      ) : null}
-
       {newest.length > 0 ? (
-        <section className="pt-16 sm:pt-24">
+        <section className="pt-14 sm:pt-20">
           <SectionHeader title="Nuevos ingresos" href="/productos?orden=nuevos" />
           <ProductGrid products={newest.map(toEntry)} testId="home-new" />
         </section>

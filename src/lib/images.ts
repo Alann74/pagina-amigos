@@ -16,17 +16,33 @@ export async function imageRatio(input: Buffer): Promise<number | null> {
 }
 
 /**
- * Producto: lienzo 3:4 (1200×1600 máx.), fondo blanco (las PNG recortadas quedan sobre blanco),
- * sin recortar la prenda. Se generan 3 anchos en WebP.
+ * Recorte a 3:4 de una foto con modelo: lo que sobra de alto se saca un tercio de arriba y dos tercios
+ * de abajo (no se corta la cabeza y casi nunca la prenda); lo que sobra de ancho, parejo de los dos lados.
+ */
+export function coverBox(width: number, height: number): { left: number; top: number; width: number; height: number } {
+  const target = 4 / 3;
+  if (height / width > target) {
+    const h = Math.round(width * target);
+    return { left: 0, top: Math.round((height - h) * 0.35), width, height: h };
+  }
+  const w = Math.round(height / target);
+  return { left: Math.round((width - w) / 2), top: 0, width: w, height };
+}
+
+/**
+ * Producto: lienzo 3:4 (1200×1600 máx.). "contain": entera sobre blanco (las PNG recortadas de la prenda
+ * sola); "cover": llena el lienzo (fotos con modelo, ver coverBox). Se generan 3 anchos en WebP.
  */
 export async function processProductImage(input: Buffer, basePath: string, opts: { fit?: "contain" | "cover" } = {}): Promise<ProcessedImage> {
   const fit = opts.fit ?? "contain";
-  const position = fit === "cover" ? "top" : "centre";
   // La foto original (a veces PNG de muchos MB) se decodifica una sola vez: de esta base salen todos los tamaños
-  const { data, info } = await sharp(input, { failOn: "none" })
-    .rotate()
-    .flatten({ background: "#ffffff" })
-    .resize(1200, 1600, { fit, position, background: "#ffffff", withoutEnlargement: false })
+  let source = sharp(input, { failOn: "none" }).rotate().flatten({ background: "#ffffff" });
+  if (fit === "cover") {
+    const { data: full, info: fi } = await source.raw().toBuffer({ resolveWithObject: true });
+    source = sharp(full, { raw: { width: fi.width, height: fi.height, channels: fi.channels } }).extract(coverBox(fi.width, fi.height));
+  }
+  const { data, info } = await source
+    .resize(1200, 1600, { fit: fit === "cover" ? "fill" : "contain", background: "#ffffff", withoutEnlargement: false })
     .raw()
     .toBuffer({ resolveWithObject: true });
   const base = () => sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } });
@@ -45,7 +61,7 @@ export async function processProductImage(input: Buffer, basePath: string, opts:
     }),
   );
   // JPG para compartir (Open Graph / feed de Meta)
-  const share = await base().resize(1200, 1500, { fit, position, background: "#ffffff" }).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+  const share = await base().resize(1200, 1500, { fit: "cover", position: "top", background: "#ffffff" }).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
   outputs.push({ path: `${basePath}-share.jpg`, out: share, type: "image/jpeg" });
   const urls = await Promise.all(outputs.map((o) => putFile(o.path, o.out, o.type)));
   return { url: urls[PRODUCT_WIDTHS.indexOf(1200)], width: 1200, height: 1600, urls };

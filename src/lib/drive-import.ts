@@ -102,9 +102,12 @@ export async function getPhotoStatus(): Promise<PhotoStatus[]> {
   });
 }
 
-/** Prenda sola (catálogo): entera sobre blanco. Foto con modelo de proporción parecida a 3:4: recorte desde arriba (sin cortar cabezas). */
+/**
+ * Prenda sola (catálogo): entera sobre blanco. Foto con modelo: llena el lienzo 3:4 (ver coverBox), salvo
+ * que sea apaisada (dos personas, paisaje): esa va entera para no dejar a nadie afuera.
+ */
 export function fitFor(kind: DriveMatch["kind"], ratio: number | null): "cover" | "contain" {
-  return (kind === "campana" || kind === "modelo" || kind === "look") && ratio !== null && ratio >= 1.2 && ratio <= 1.55 ? "cover" : "contain";
+  return (kind === "campana" || kind === "modelo" || kind === "look") && ratio !== null && ratio >= 1.1 ? "cover" : "contain";
 }
 
 /**

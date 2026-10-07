@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { media, productImages, products, settings } from "@/db/schema";
 import { photoFeatures } from "@/lib/photo-analysis";
 import { baseTitle, classifyPhoto, compareRank, photoRank } from "@/lib/photo-classify";
+import { chosenMainPhoto, scopeRules } from "@/lib/photo-scope";
 
 // Orden de las fotos de cada producto, según el pedido de INEDITA: modelo → otras de la modelo →
 // prenda sola (frente y espalda por color) → detalles. Se ordena lo que el producto tiene de verdad
@@ -18,7 +19,11 @@ type State = {
   firmas: Record<string, string>; // producto → fotos que tenía la última vez que se ordenó
   manual: number[]; // productos ordenados a mano en el panel
   vista: Record<string, "modelo" | "prenda">; // fotos que se miraron para confirmar si está la modelo
+  reglas?: string; // si cambian las reglas de orden, se vuelve a ordenar todo (salvo lo ordenado a mano)
 };
+
+// Cambia cuando cambia la forma de ordenar o las principales elegidas a mano
+const RULES = createHash("sha1").update(`clasificacion-2026-10-07b|${JSON.stringify(scopeRules)}`).digest("hex").slice(0, 12);
 
 async function getState(): Promise<State> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, KEY) });
@@ -67,7 +72,8 @@ export async function syncPhotoOrder(only?: number[]): Promise<number> {
     .where(only?.length ? inArray(productImages.productId, only) : undefined);
   const byProduct = new Map<number, Row[]>();
   for (const r of rows) byProduct.set(r.productId, [...(byProduct.get(r.productId) ?? []), r]);
-  const pending = [...byProduct.entries()].filter(([id, list]) => state.firmas[id] !== signature(list) || list.some((i) => i.sortOrder >= 1000));
+  const rulesChanged = state.reglas !== RULES;
+  const pending = [...byProduct.entries()].filter(([id, list]) => rulesChanged || state.firmas[id] !== signature(list) || list.some((i) => i.sortOrder >= 1000));
 
   // Las "dudosas" por nombre (PNG numerada sin color) se miran una vez: piel visible y fondo
   const toLook = pending.flatMap(([, list]) => list).filter((i) => i.key && !state.vista[i.key] && classifyPhoto(i.title ?? "")?.dudosa);
@@ -89,9 +95,13 @@ export async function syncPhotoOrder(only?: number[]): Promise<number> {
       return photoRank(c, i.article ?? "");
     };
     const byRank = (a: Row, b: Row) => compareRank(rank(a), rank(b)) || baseTitle(a.title ?? "").localeCompare(baseTitle(b.title ?? "")) || a.id - b.id;
-    const ordered = manual.has(productId)
+    let ordered = manual.has(productId)
       ? [...list.filter((i) => i.sortOrder < 1000).sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id), ...list.filter((i) => i.sortOrder >= 1000).sort(byRank)]
       : [...list].sort(byRank);
+    // Principal elegida a mano en data/fotos-articulo.json
+    const chosen = !manual.has(productId) && list[0]?.article ? chosenMainPhoto(list[0].article) : undefined;
+    const main = chosen ? ordered.find((i) => i.title && baseTitle(i.title).toLowerCase() === chosen.toLowerCase()) : undefined;
+    if (main) ordered = [main, ...ordered.filter((i) => i !== main)];
     ordered.forEach((img, pos) => {
       if (img.sortOrder !== pos) changes.push([img.id, pos]);
     });
@@ -106,6 +116,8 @@ export async function syncPhotoOrder(only?: number[]): Promise<number> {
       )}) as v(id, pos) where pi.id = v.id`,
     );
   }
+  // Si se ordenaron solo algunos productos, las reglas nuevas quedan pendientes para el resto
+  if (!only?.length) state.reglas = RULES;
   state.fecha = new Date().toISOString();
   state.cambios = changes.length;
   await saveState(state);
