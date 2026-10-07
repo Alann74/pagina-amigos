@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { revalidateTag } from "next/cache";
 import { TAGS } from "@/lib/catalog";
+import { blobEnabled } from "@/lib/storage";
 import { autoConfigureCampaign, importPendingPhotos, logImport, photoProgress, testOnePhoto, validMaintenanceToken } from "@/lib/photo-autoimport";
 
 export const maxDuration = 300;
@@ -8,6 +9,9 @@ export const maxDuration = 300;
 // GET /api/maintenance/import-photos?token=…               → arranca (o continúa) la importación en segundo plano
 // GET /api/maintenance/import-photos?token=…&estado=1      → solo muestra el avance
 // GET /api/maintenance/import-photos?token=…&diagnostico=1 → prueba bajar y guardar una foto y muestra el resultado
+// Solo los nombres de las variables relacionadas con Blob (nunca los valores), para diagnosticar la conexión
+const blobEnvNames = () => Object.keys(process.env).filter((k) => /BLOB|OIDC/.test(k)).sort();
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   if (!validMaintenanceToken(url.searchParams.get("token"))) return new Response("No encontrado", { status: 404 });
@@ -16,11 +20,11 @@ export async function GET(request: Request) {
   if (url.searchParams.get("diagnostico")) {
     const test = await testOnePhoto();
     await logImport({ diagnostico: test });
-    return Response.json({ ...progress, blob: Boolean(process.env.BLOB_READ_WRITE_TOKEN), diagnostico: test });
+    return Response.json({ ...progress, blob: blobEnabled(), variables: blobEnvNames(), diagnostico: test });
   }
 
   const step = Number(url.searchParams.get("paso") ?? 1);
-  await logImport({ paso: step, estado: "iniciado", blob: Boolean(process.env.BLOB_READ_WRITE_TOKEN), ...progress });
+  await logImport({ paso: step, estado: "iniciado", blob: blobEnabled(), variables: blobEnvNames(), ...progress });
   after(async () => {
     try {
       const result = await importPendingPhotos(240_000);
@@ -44,5 +48,5 @@ export async function GET(request: Request) {
       await logImport({ paso: step, estado: "falló", error: e instanceof Error ? `${e.message}\n${e.stack?.slice(0, 800)}` : String(e) });
     }
   });
-  return Response.json({ ok: true, paso: step, blob: Boolean(process.env.BLOB_READ_WRITE_TOKEN), ...progress });
+  return Response.json({ ok: true, paso: step, blob: blobEnabled(), variables: blobEnvNames(), ...progress });
 }

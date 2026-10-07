@@ -63,7 +63,7 @@ async function Status() {
 
       <Section title="2. Fotos">
         <ul>
-          <Check ok={s.env.blob} label="Vercel Blob conectado (BLOB_READ_WRITE_TOKEN)" hint={s.env.blob ? null : "Sin Blob, las fotos no se pueden guardar en producción. Vercel → Storage → Blob → conectar al proyecto."} />
+          <Check ok={s.env.blob} label="Vercel Blob conectado" hint={s.env.blob ? null : "Sin Blob, las fotos no se pueden guardar en producción. Vercel → Storage → Blob → conectar al proyecto."} />
           <Check ok={(s.counts?.images ?? 0) > 0} label={`Fotos importadas: ${s.counts?.images ?? 0}`} hint={<Link href="/admin/fotos" className="underline underline-offset-2">Importar desde Drive →</Link>} />
         </ul>
       </Section>

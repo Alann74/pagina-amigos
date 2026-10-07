@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { seedCatalog } from "@/lib/catalog-seed";
 import { PHOTO_MATCHES } from "@/lib/drive-import";
 import { SITE_URL } from "@/lib/site";
+import { blobEnabled } from "@/lib/storage";
 import journal from "../../drizzle/meta/_journal.json";
 
 // Estado y preparación de la base desde /admin/instalacion (sin consola ni scripts).
@@ -20,7 +21,7 @@ export type InstallStatus = {
 export async function getInstallStatus(): Promise<InstallStatus> {
   const env = {
     database: Boolean(process.env.DATABASE_URL),
-    blob: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
+    blob: blobEnabled(),
     sessionSecret: Boolean(process.env.ADMIN_SESSION_SECRET),
     siteUrl: SITE_URL,
     metaPixel: Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID),

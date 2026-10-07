@@ -11,6 +11,7 @@ async function main() {
   const url = process.env.DATABASE_URL ?? "";
   if (!/localhost|127\.0\.0\.1/.test(url)) throw new Error("dev-placeholders solo corre contra una base local");
   delete process.env.BLOB_READ_WRITE_TOKEN;
+  delete process.env.BLOB_STORE_ID;
   const pool = new Pool({ connectionString: url, max: 2 });
   const db = drizzle(pool, { schema });
   const products = await db.select().from(schema.products).where(eq(schema.products.visible, true));

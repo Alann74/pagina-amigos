@@ -1,9 +1,16 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-// Si hay BLOB_READ_WRITE_TOKEN se sube a Vercel Blob; si no (desarrollo local) se guarda en /public/uploads.
+/**
+ * Vercel Blob conectado: con el token clásico (BLOB_READ_WRITE_TOKEN) o con la conexión nueva de Vercel
+ * (BLOB_STORE_ID + autenticación automática OIDC). Sin ninguno (desarrollo local) se guarda en /public/uploads.
+ */
+export function blobEnabled(): boolean {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
+}
+
 export async function putFile(pathname: string, body: Buffer, contentType: string): Promise<string> {
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
+  if (blobEnabled()) {
     const { put } = await import("@vercel/blob");
     const result = await put(pathname, body, {
       access: "public",
@@ -22,7 +29,7 @@ export async function putFile(pathname: string, body: Buffer, contentType: strin
 
 export async function deleteFiles(urls: string[]): Promise<void> {
   if (urls.length === 0) return;
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
+  if (blobEnabled()) {
     const { del } = await import("@vercel/blob");
     await del(urls.filter((u) => u.startsWith("http")));
     return;
