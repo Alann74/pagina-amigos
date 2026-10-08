@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { AnnouncementBar } from "@/components/layout/announcement-bar";
+import { MarketingScripts } from "@/components/marketing-scripts";
 import { RevealOnScroll } from "@/components/reveal";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
@@ -44,6 +45,8 @@ export default async function ShopLayout({ children }: LayoutProps<"/">) {
         </main>
         <Footer />
         <RevealOnScroll />
+        {/* Google Analytics y Meta Pixel: solo en la tienda (el panel no se mide) */}
+        <MarketingScripts />
         <Suspense>
           <ShopProviders />
         </Suspense>

@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter_Tight } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
-import { MarketingScripts } from "@/components/marketing-scripts";
 import { BRAND, DEFAULT_DESCRIPTION, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
@@ -41,7 +40,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-dvh bg-paper text-ink">
         {children}
-        <MarketingScripts />
         <Analytics />
       </body>
     </html>
