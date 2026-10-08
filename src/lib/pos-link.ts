@@ -1,20 +1,35 @@
 import { timingSafeEqual } from "node:crypto";
-import { asc, gt, inArray, isNotNull, or, sql } from "drizzle-orm";
+import { asc, eq, gt, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { orderItems, orders, variants } from "@/db/schema";
+import { orderItems, orders, settings, variants } from "@/db/schema";
 import { formatOrderNumber } from "@/lib/format";
 
 // Conexión con el POS (inedita-pos), que es la fuente de verdad del stock:
 // - El POS lee los pedidos web y pregunta en la caja si descontarlos de su stock (acá nunca se descuenta solo).
 // - El POS manda su stock por SKU (mismo formato: 39603-NEGRO-M). Mientras no lo mande, o si lo apaga,
 //   la web vende sin controlar stock (variants.stock = null).
-// Las dos puntas comparten un secreto: POS_API_SECRET acá y TIENDA_WEB_SECRET en el POS.
+// Las dos puntas comparten un secreto: POS_API_SECRET acá y TIENDA_WEB_SECRET en el POS. Si no está en
+// las variables de Vercel, se toma de la base (settings "pos-conexion": { clave }).
 
-export function validPosToken(authorization: string | null): boolean {
-  const expected = process.env.POS_API_SECRET;
+const SECRET_KEY = "pos-conexion";
+let cachedSecret: { value: string | null; at: number } | null = null;
+
+async function expectedSecret(): Promise<string | null> {
+  const fromEnv = process.env.POS_API_SECRET?.trim();
+  if (fromEnv) return fromEnv;
+  if (cachedSecret && Date.now() - cachedSecret.at < 60_000) return cachedSecret.value;
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, SECRET_KEY) });
+  const value = (row?.value as { clave?: unknown } | undefined)?.clave;
+  cachedSecret = { value: typeof value === "string" ? value : null, at: Date.now() };
+  return cachedSecret.value;
+}
+
+export async function validPosToken(authorization: string | null): Promise<boolean> {
   const given = authorization?.replace(/^Bearer\s+/i, "").trim() ?? "";
-  if (!expected || expected.length < 24 || !given) return false;
+  if (!given) return false;
+  const expected = await expectedSecret();
+  if (!expected || expected.length < 24) return false;
   const a = Buffer.from(given);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);

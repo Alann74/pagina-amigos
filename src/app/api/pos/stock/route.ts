@@ -6,7 +6,7 @@ export const maxDuration = 60;
 
 // El POS manda su stock por SKU: { items: [{ sku, stock }] }, o { desactivar: true } para volver a vender sin controlar stock.
 export async function POST(request: Request) {
-  if (!validPosToken(request.headers.get("authorization"))) return Response.json({ error: "No autorizado" }, { status: 401 });
+  if (!(await validPosToken(request.headers.get("authorization")))) return Response.json({ error: "No autorizado" }, { status: 401 });
   let body: unknown;
   try {
     body = await request.json();

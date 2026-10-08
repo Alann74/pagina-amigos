@@ -3,7 +3,7 @@ import { ordersForPos, validPosToken } from "@/lib/pos-link";
 // El POS lee los pedidos web para preguntar en la caja si se descuentan del stock.
 //   GET /api/pos/pedidos?desde=<último número que ya tiene>&numeros=<pendientes, separados por coma>
 export async function GET(request: Request) {
-  if (!validPosToken(request.headers.get("authorization"))) return Response.json({ error: "No autorizado" }, { status: 401 });
+  if (!(await validPosToken(request.headers.get("authorization")))) return Response.json({ error: "No autorizado" }, { status: 401 });
   const url = new URL(request.url);
   const after = Math.max(0, Number.parseInt(url.searchParams.get("desde") ?? "0", 10) || 0);
   const numbers = (url.searchParams.get("numeros") ?? "")
