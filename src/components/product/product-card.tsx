@@ -45,7 +45,7 @@ export function ProductCard({ product, priority = false, sizes = "(min-width: 10
           </span>
         ) : null}
       </div>
-      <Link href={href} className="mt-2.5 block px-0.5 sm:mt-3" aria-label={`${product.name}, ${formatPrice(price)}`}>
+      <Link href={href} className="mt-2.5 block px-0.5 sm:mt-3">
         <h3 className="text-[12.5px] leading-snug sm:text-[13px]">{product.name}</h3>
         <p className="mt-0.5 flex items-baseline justify-between gap-2 text-[12.5px] tabular-nums sm:text-[13px]">
           <span data-price>{formatPrice(price)}</span>
