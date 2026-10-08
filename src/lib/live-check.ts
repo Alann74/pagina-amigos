@@ -6,6 +6,7 @@ import { productImages, products, settings } from "@/db/schema";
 // tienen que traer las fotos, y cada foto tiene que bajar bien como la pide un navegador.
 
 const WEBP = /-w\d+\.webp$/;
+const SAMPLE = 30;
 
 async function get(url: string) {
   const t0 = Date.now();
@@ -36,13 +37,16 @@ export async function liveCheck(base: string) {
   }
   report.paginas = paginas;
 
-  // Todas las fotos: el tamaño que piden los celulares (800) y, de una muestra, 400/1200/JPG
-  const rows = await db.select({ url: productImages.url }).from(productImages);
+  // Una muestra repartida por el catálogo: el tamaño que piden los celulares (800) y, de algunas, 400/1200/JPG.
+  // No se piden todas: cada foto que no está en la caché de Vercel se lee de la base y eso gasta la
+  // transferencia mensual de Neon (que existan todas lo revisa checkAllProductPhotos, sin bajarlas).
+  const rows = (await db.select({ url: productImages.url }).from(productImages)).filter((r) => WEBP.test(r.url));
+  const step = Math.max(1, Math.floor(rows.length / SAMPLE));
   const jobs: string[] = [];
   rows.forEach((r, i) => {
-    if (!WEBP.test(r.url)) return;
+    if (i % step !== 0) return;
     jobs.push(r.url.replace(WEBP, "-w800.webp"));
-    if (i % 10 === 0) jobs.push(r.url.replace(WEBP, "-w400.webp"), r.url.replace(WEBP, "-w1200.webp"), r.url.replace(WEBP, "-share.jpg"));
+    if (i % (step * 6) === 0) jobs.push(r.url.replace(WEBP, "-w400.webp"), r.url.replace(WEBP, "-w1200.webp"), r.url.replace(WEBP, "-share.jpg"));
   });
   const fallas: Record<string, unknown>[] = [];
   let ok = 0;
@@ -50,7 +54,7 @@ export async function liveCheck(base: string) {
   let ms = 0;
   let i = 0;
   await Promise.all(
-    Array.from({ length: 12 }, async () => {
+    Array.from({ length: 6 }, async () => {
       while (i < jobs.length) {
         const u = jobs[i++];
         const r = await get(base + u);

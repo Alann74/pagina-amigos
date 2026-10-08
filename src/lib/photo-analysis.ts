@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import sharp from "sharp";
 import { db } from "@/db";
 import { media, productImages, settings } from "@/db/schema";
@@ -29,17 +29,36 @@ export async function photoFeatures(data: Buffer) {
 
 const pct = (list: number[], p: number) => (list.length ? list.slice().sort((a, b) => a - b)[Math.floor((list.length - 1) * p)] : 0);
 
+// Rasgos ya calculados por foto (la clave cambia si cambia la foto): así cada deploy solo baja de la base
+// las fotos nuevas y no las 900 enteras (eso gastaba la transferencia mensual de Neon).
+const FEATURES_KEY = "fotos-analisis-rasgos";
+
 export async function classificationReport() {
   const rows = await db
-    .select({ title: productImages.sourceName, key: media.key, data: media.data })
+    .select({ title: productImages.sourceName, key: media.key })
     .from(productImages)
     .innerJoin(media, sql`${media.key} = ${productImages.blobPath}`);
+  const saved = ((await db.query.settings.findFirst({ where: eq(settings.key, FEATURES_KEY) }))?.value ?? {}) as Record<string, [number, number]>;
+  const current = new Set(rows.map((r) => r.key));
+  const features: Record<string, [number, number]> = Object.fromEntries(Object.entries(saved).filter(([k]) => current.has(k)));
+  const missing = [...current].filter((k) => !features[k]);
+  for (let k = 0; k < missing.length; k += 20) {
+    const part = await db.select({ key: media.key, data: media.data }).from(media).where(inArray(media.key, missing.slice(k, k + 20)));
+    for (const d of part) {
+      const f = await photoFeatures(d.data).catch(() => null);
+      if (f) features[d.key] = [f.skin, f.borde];
+    }
+  }
+  if (missing.length || Object.keys(saved).length !== Object.keys(features).length) {
+    await db.insert(settings).values({ key: FEATURES_KEY, value: features }).onConflictDoUpdate({ target: settings.key, set: { value: features } });
+  }
   const byKind = new Map<string, { title: string; skin: number; borde: number }[]>();
   for (const r of rows) {
     const c = r.title ? classifyPhoto(r.title) : null;
     const kind = c ? `${c.kind}${c.dudosa ? "-dudosa" : ""}${r.title && /\.png$/i.test(r.title) ? "-png" : "-jpg"}` : "sin-nombre";
-    const f = await photoFeatures(r.data).catch(() => null);
-    if (!f) continue;
+    const v = features[r.key];
+    if (!v) continue;
+    const f = { skin: v[0], borde: v[1] };
     byKind.set(kind, [...(byKind.get(kind) ?? []), { title: r.title ?? "", ...f }]);
   }
   const resumen = Object.fromEntries(
@@ -57,7 +76,7 @@ export async function classificationReport() {
       },
     ]),
   );
-  const value = { fecha: new Date().toISOString(), resumen };
+  const value = { fecha: new Date().toISOString(), nuevas: missing.length, resumen };
   await db.insert(settings).values({ key: "fotos-analisis", value }).onConflictDoUpdate({ target: settings.key, set: { value } });
   return value;
 }
