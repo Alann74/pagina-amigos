@@ -11,9 +11,11 @@ import { useShopConfig } from "@/components/shop-config";
 import { useCartPricing, useWholesale } from "@/components/wholesale";
 import { trackWhatsappOrder } from "@/lib/analytics";
 import { readAttribution } from "@/lib/attribution";
+import { cashPrice } from "@/lib/format";
 import { useHydrated } from "@/lib/use-hydrated";
 import { cartCount, useCart } from "@/stores/cart";
 import { forgetWelcome, readWelcome, saveWelcome, type WelcomeCode } from "@/lib/welcome-client";
+import { buildOrderMessage, whatsappUrl } from "@/lib/whatsapp";
 
 type Form = {
   customerName: string;
@@ -35,7 +37,7 @@ export function Checkout() {
   const router = useRouter();
   const items = useCart((s) => s.items);
   const clear = useCart((s) => s.clear);
-  const { storeAddressShort, cashDiscountPercent: retailCashPercent, installments } = useShopConfig();
+  const { storeAddressShort, cashDiscountPercent: retailCashPercent, installments, whatsappNumber } = useShopConfig();
   const wholesale = useWholesale();
   const pricing = useCartPricing();
   const cashDiscountPercent = wholesale.active ? (wholesale.session?.cashDiscountPercent ?? 0) : retailCashPercent;
@@ -56,6 +58,8 @@ export function Checkout() {
   });
   const [error, setError] = useState<{ message: string; field?: string } | null>(null);
   const [sending, setSending] = useState(false);
+  // WhatsApp abierto sin registrar el pedido (la web no lo pudo guardar)
+  const [fallbackUrl, setFallbackUrl] = useState<string | null>(null);
 
   // El código guardado se confirma con el servidor (puede haberse usado en otro pedido)
   const storedCode = welcome?.code ?? null;
@@ -120,10 +124,44 @@ export function Checkout() {
   const units = cartCount(items);
   const welcomePercent = !wholesale.active && welcome && welcome.percent > cashDiscountPercent ? welcome.percent : 0;
 
+  // Plan B: si la web no puede registrar el pedido (falla del servidor o de la base), la venta no se pierde.
+  // El mensaje se arma con lo que hay en la bolsa y se abre WhatsApp igual, sin número de pedido.
+  const sendWithoutRegistering = (preOpened: Window | null) => {
+    const useWelcome = welcomePercent > 0 && form.paymentMethod !== "tarjeta";
+    const percent = useWelcome ? welcomePercent : cashDiscountPercent;
+    const lines = items.map((i) => ({ name: i.name, articleCode: i.articleCode, size: i.size, color: i.color, quantity: i.quantity, unitPrice: pricing.unitPrice(i) }));
+    const message = buildOrderMessage({
+      orderLabel: "",
+      items: lines,
+      subtotal,
+      cashTotal: cashPrice(subtotal, percent),
+      discountPercent: percent,
+      installments,
+      customerName: form.customerName,
+      customerPhone: form.customerPhone,
+      delivery: { method: form.deliveryMethod, area: form.deliveryMethod === "envio" ? form.deliveryArea : null, storeAddressShort },
+      payment: form.paymentMethod,
+      comment: form.comment,
+      wholesale: wholesale.active,
+      welcomeCode: useWelcome ? (welcome?.code ?? null) : null,
+    });
+    const url = whatsappUrl(whatsappNumber, message);
+    trackWhatsappOrder(
+      `sin-registrar-${Date.now()}`,
+      form.paymentMethod === "tarjeta" ? subtotal : cashPrice(subtotal, percent),
+      items.map((i) => ({ id: i.articleCode ?? String(i.productId), name: i.name, price: pricing.unitPrice(i), quantity: i.quantity })),
+    );
+    setFallbackUrl(url);
+    setSending(false);
+    if (preOpened) preOpened.location.href = url;
+    else window.location.href = url;
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (sending) return;
     setError(null);
+    setFallbackUrl(null);
     if (form.customerName.trim().length < 2) return setError({ message: "Ingresá tu nombre", field: "customerName" });
     if (form.customerPhone.replace(/\D/g, "").length < 8) return setError({ message: "Ingresá un teléfono válido", field: "customerPhone" });
     if (form.deliveryMethod === "envio" && form.deliveryArea.trim().length < 2) return setError({ message: "Indicá tu barrio o localidad", field: "deliveryArea" });
@@ -132,9 +170,10 @@ export function Checkout() {
     // En desktop abrimos la pestaña ya (dentro del click) para que el navegador no la bloquee
     const preOpened = !mobile ? window.open("", "_blank") : null;
     setSending(true);
+    let res: Response | null = null;
     try {
       const attribution = readAttribution();
-      const res = await fetch("/api/orders", {
+      res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -161,30 +200,28 @@ export function Checkout() {
           website: "",
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        preOpened?.close();
-        setError({ message: data.error ?? "No pudimos enviar el pedido", field: data.field });
-        setSending(false);
-        return;
-      }
-      try {
-        localStorage.setItem(FORM_KEY, JSON.stringify({ customerName: form.customerName, customerPhone: form.customerPhone, deliveryArea: form.deliveryArea }));
-        if (data.welcomeApplied) forgetWelcome();
-        sessionStorage.setItem(`inedita-order-${data.token}`, JSON.stringify({ message: data.message, whatsappUrl: data.whatsappUrl }));
-      } catch {}
-      trackWhatsappOrder(data.label, form.paymentMethod === "tarjeta" ? data.subtotal : data.cashTotal, data.items);
-      clear();
-      if (preOpened) {
-        preOpened.location.href = data.whatsappUrl;
-        router.replace(`/pedido/${data.token}`);
-      } else {
-        router.replace(`/pedido/${data.token}?abrir=1`);
-      }
-    } catch {
+    } catch {}
+    const data = res ? await res.json().catch(() => null) : null;
+    // Sin respuesta o error del servidor: se manda igual por WhatsApp
+    if (!res || res.status >= 500 || !data) return sendWithoutRegistering(preOpened);
+    if (!res.ok) {
       preOpened?.close();
-      setError({ message: "No pudimos conectarnos. Revisá tu conexión y probá de nuevo." });
+      setError({ message: data.error ?? "No pudimos enviar el pedido", field: data.field });
       setSending(false);
+      return;
+    }
+    try {
+      localStorage.setItem(FORM_KEY, JSON.stringify({ customerName: form.customerName, customerPhone: form.customerPhone, deliveryArea: form.deliveryArea }));
+      if (data.welcomeApplied) forgetWelcome();
+      sessionStorage.setItem(`inedita-order-${data.token}`, JSON.stringify({ message: data.message, whatsappUrl: data.whatsappUrl }));
+    } catch {}
+    trackWhatsappOrder(data.label, form.paymentMethod === "tarjeta" ? data.subtotal : data.cashTotal, data.items);
+    clear();
+    if (preOpened) {
+      preOpened.location.href = data.whatsappUrl;
+      router.replace(`/pedido/${data.token}`);
+    } else {
+      router.replace(`/pedido/${data.token}?abrir=1`);
     }
   };
 
@@ -366,6 +403,14 @@ export function Checkout() {
             <p className="border border-ink p-3 text-[13px]" role="alert">
               {error.message}
             </p>
+          ) : null}
+          {fallbackUrl ? (
+            <div className="border border-ink p-3 text-[13px]" role="status" data-testid="order-fallback">
+              <p>No pudimos registrar el pedido en la web, pero te abrimos WhatsApp con el detalle: mandalo y te respondemos por ahí.</p>
+              <a href={fallbackUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block underline underline-offset-4">
+                Abrir WhatsApp de nuevo
+              </a>
+            </div>
           ) : null}
 
           <button type="submit" className="btn btn-primary w-full" disabled={sending} data-testid="send-order">

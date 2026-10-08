@@ -10,7 +10,7 @@ export type OrderMessageItem = {
 };
 
 export type OrderMessageInput = {
-  orderLabel: string; // #INE-0001
+  orderLabel: string; // #INE-0001 ("" si no se pudo registrar en la web: el mensaje sale igual, sin número)
   items: OrderMessageItem[];
   subtotal: number;
   cashTotal: number;
@@ -55,9 +55,8 @@ export function buildOrderMessage(input: OrderMessageInput): string {
       ? `${PAYMENT_LABEL.tarjeta} (${input.installments} cuotas sin interés)`
       : PAYMENT_LABEL[input.payment];
 
-  const head = input.wholesale
-    ? `Hola INEDITA! PEDIDO MAYORISTA ${input.orderLabel}:`
-    : `Hola INEDITA! Quiero hacer este pedido ${input.orderLabel}:`;
+  const label = input.orderLabel ? ` ${input.orderLabel}` : "";
+  const head = input.wholesale ? `Hola INEDITA! PEDIDO MAYORISTA${label}:` : `Hola INEDITA! Quiero hacer este pedido${label}:`;
   const totals = [`${input.wholesale ? "Subtotal mayorista" : "Subtotal"}: ${formatPrice(input.subtotal)}`];
   if (input.discountPercent > 0) {
     totals.push(
@@ -89,7 +88,8 @@ export function buildOrderMessage(input: OrderMessageInput): string {
   const lines = input.items.map((i) => itemLine(i, true));
   for (let keep = lines.length - 1; keep >= 1; keep--) {
     const rest = input.items.slice(keep).reduce((acc, i) => acc + i.quantity, 0);
-    const summary = `• …y ${rest} ${rest === 1 ? "prenda más" : "prendas más"} (el detalle completo quedó registrado en el pedido ${input.orderLabel})`;
+    const more = `• …y ${rest} ${rest === 1 ? "prenda más" : "prendas más"}`;
+    const summary = input.orderLabel ? `${more} (el detalle completo quedó registrado en el pedido ${input.orderLabel})` : more;
     message = compose([...lines.slice(0, keep), summary]);
     if (message.length <= MAX_MESSAGE_LENGTH) return message;
   }

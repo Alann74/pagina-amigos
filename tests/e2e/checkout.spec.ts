@@ -76,3 +76,35 @@ test("consultar por WhatsApp desde la ficha arma el mensaje con producto y link"
   expect(text).toContain(`Hola INEDITA! Quiero consultar por ${name} – Talle`);
   expect(text).toMatch(/– https?:\/\/[^ ]+\/producto\//);
 });
+
+test("si la web no puede registrar el pedido, igual se abre WhatsApp con el detalle", async ({ page, context }, testInfo) => {
+  const isDesktop = testInfo.project.name === "desktop";
+  let waUrl: string | null = null;
+  await context.route(/https:\/\/(wa\.me|api\.whatsapp\.com)\/.*/, async (route) => {
+    waUrl = route.request().url();
+    await route.fulfill({ status: 200, contentType: "text/html", body: "<html><body>WhatsApp</body></html>" });
+  });
+  // El servidor falla al guardar (como cuando la base no responde)
+  await page.route("**/api/orders", (route) => route.fulfill({ status: 500, contentType: "text/html", body: "Internal Server Error" }));
+
+  const first = await addFirstAvailableProduct(page, 0, 1);
+  await page.goto("/carrito");
+  await page.getByLabel("Nombre").fill("Prueba Sin Base");
+  await page.getByLabel("Teléfono / WhatsApp").fill("341 555-0000");
+  await page.getByText(/^Retiro en/).click();
+  await page.getByText("Transferencia", { exact: true }).click();
+
+  const popupPromise = isDesktop ? context.waitForEvent("page") : null;
+  await page.getByTestId("send-order").click();
+  if (popupPromise) await popupPromise;
+  await expect.poll(() => waUrl, { timeout: 15_000 }).not.toBeNull();
+
+  const text = new URL(waUrl!).searchParams.get("text") ?? "";
+  expect(text).toMatch(/^Hola INEDITA! Quiero hacer este pedido:\n/);
+  expect(text).toContain(`• ${first} (art. `);
+  expect(text).toContain("Nombre: Prueba Sin Base");
+  expect(text).toContain("Entrega: Retiro en Mitre 830");
+  expect(text).toMatch(/Total con 10% OFF efectivo\/transferencia: \$[\d.]+/);
+  expect(new URL(waUrl!).pathname).toBe("/5493412550777");
+  if (isDesktop) await expect(page.getByTestId("order-fallback")).toBeVisible();
+});

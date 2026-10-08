@@ -79,3 +79,18 @@ test("envío a coordinar con barrio y pago con tarjeta", () => {
   assert.match(msg, /Pago: Tarjeta \(3 cuotas sin interés\)/);
   assert.doesNotMatch(msg, /Comentario/);
 });
+
+test("sin número de pedido (la web no lo pudo registrar): el mensaje sale igual", () => {
+  const msg = buildOrderMessage({
+    ...base,
+    orderLabel: "",
+    items: [{ name: "Vestido Lino Negro", articleCode: "39603", size: "M", color: "NEGRO", quantity: 1, unitPrice: 45000 }],
+  });
+  assert.match(msg, /^Hola INEDITA! Quiero hacer este pedido:\n/);
+  assert.match(msg, /• Vestido Lino Negro \(art\. 39603\) — Talle M/);
+  const many = Array.from({ length: 60 }, (_, i) => ({ name: `Prenda con nombre largo número ${i}`, articleCode: `39${i}`, size: "M", color: "NEGRO", quantity: 1, unitPrice: 30000 }));
+  const long = buildOrderMessage({ ...base, orderLabel: "", items: many });
+  assert.ok(long.length <= MAX_MESSAGE_LENGTH);
+  assert.match(long, /prendas más$/m);
+  assert.doesNotMatch(long, /registrado en el pedido/);
+});
