@@ -68,8 +68,8 @@ async function main() {
 async function liveBase(): Promise<string> {
   if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
   try {
-    const res = await fetch("https://www.inedita-rosario.com/", { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(6000) });
-    if (res.headers.get("server")?.toLowerCase() === "vercel" || res.headers.has("x-vercel-id")) return "https://www.inedita-rosario.com";
+    const res = await fetch("https://inedita-rosario.com/", { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(6000) });
+    if (res.headers.get("server")?.toLowerCase() === "vercel" || res.headers.has("x-vercel-id")) return "https://inedita-rosario.com";
   } catch {}
   return "https://inedita-tienda.vercel.app";
 }

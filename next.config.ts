@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 import tiendanube from "./data/redirecciones-tiendanube.json";
 
-// Dominio propio: se usa como dirección del sitio (links compartidos, sitemap, feed) recién cuando ya apunta
+// Dominio propio (sin "www"): se usa como dirección del sitio (links compartidos, sitemap, feed) recién cuando ya apunta
 // a esta tienda. Mientras siga en Tienda Nube, se usa la dirección de Vercel. Se revisa en cada deploy.
-const DOMAIN = "www.inedita-rosario.com";
+const DOMAIN = "inedita-rosario.com";
 const VERCEL_URL = "https://inedita-tienda.vercel.app";
 
 async function siteUrl(): Promise<string | undefined> {
@@ -40,6 +40,8 @@ const nextConfig: NextConfig = {
   // Links de la tienda anterior (Tienda Nube): cada producto y categoría lleva a su página nueva
   async redirects() {
     return [
+      // El dominio va sin "www": www.inedita-rosario.com lleva a inedita-rosario.com (misma página)
+      { source: "/:path*", has: [{ type: "host" as const, value: `www.${DOMAIN}` }], destination: `https://${DOMAIN}/:path*`, permanent: true },
       ...tiendanube.redirecciones.map((r) => ({ ...r, permanent: true })),
       { source: "/search", destination: "/buscar", permanent: true },
       { source: "/comprar", destination: "/carrito", permanent: false },
