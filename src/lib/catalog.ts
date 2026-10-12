@@ -294,6 +294,27 @@ export async function getProductBySlug(slug: string): Promise<CatalogProduct | n
   return catalog.find((p) => p.slug === slug) ?? null;
 }
 
+/**
+ * Producto que existe pero no está publicado (oculto o sin foto): devuelve la categoría donde estaba,
+ * para mandar ahí los links viejos (tienda anterior, Instagram) en vez de "Producto no encontrado".
+ */
+export async function getUnpublishedProductCategory(slug: string): Promise<string | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(TAGS.catalog);
+  try {
+    const [row] = await db
+      .select({ category: categories.slug, categoryVisible: categories.visible })
+      .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .where(eq(products.slug, slug))
+      .limit(1);
+    return row?.category && row.categoryVisible ? row.category : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getCategoryBySlug(slug: string): Promise<CatalogCategory | null> {
   const all = await getCategories();
   return all.find((c) => c.slug === slug) ?? null;

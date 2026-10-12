@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { SectionHeader } from "@/components/home/section-header";
 import { ProductGrid } from "@/components/product/product-grid";
 import { ProductView } from "@/components/product/product-view";
 import { RecentlyViewed } from "@/components/product/recently-viewed";
 import { ProductSkeleton } from "@/components/skeletons";
-import { getAllProductSlugs, getCatalog, getPages, getProductBySlug, getSettings } from "@/lib/catalog";
+import { getAllProductSlugs, getCatalog, getPages, getProductBySlug, getSettings, getUnpublishedProductCategory } from "@/lib/catalog";
 import { toEntry } from "@/lib/catalog-entry";
 import { complementCategories, stablePick } from "@/lib/complements";
 import { cashPrice, displayColor, formatPrice } from "@/lib/format";
@@ -45,7 +45,12 @@ export async function generateMetadata({ params }: PageProps<"/producto/[slug]">
 async function ProductContent({ params }: { params: PageProps<"/producto/[slug]">["params"] }) {
   const { slug } = await params;
   const [product, catalog, pages, settings] = await Promise.all([getProductBySlug(slug), getCatalog(), getPages(), getSettings()]);
-  if (!product) notFound();
+  if (!product) {
+    // Si existe pero no está publicado, el link lleva a su categoría
+    const category = await getUnpublishedProductCategory(slug);
+    if (category) redirect(`/categoria/${category}`);
+    notFound();
+  }
 
   const guideSource = pages.talles.body;
   const sizeGuide =
