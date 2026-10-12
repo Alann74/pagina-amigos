@@ -14,8 +14,8 @@ import { toWhatsappNumber, whatsappUrl } from "@/lib/whatsapp";
 //   variables que el sistema mayorista: MAIL_PEDIDOS (destinatarios, separados por coma) y MAIL_REMITENTE.
 //   Con el remitente de prueba de Resend (onboarding@resend.dev) solo se puede mandar al mail de la
 //   cuenta de Resend; para otros destinos hay que verificar un dominio propio en Resend.
-// Si Resend ya le manda a la casilla de INEDITA, FormSubmit no repite. Con { activo: false } en
-// settings "email-pedidos" no se manda nada.
+// Si Resend ya le manda a la casilla de INEDITA, FormSubmit no repite. Sin clave de Resend, FormSubmit
+// manda una copia (CC) a MAIL_PEDIDOS. Con { activo: false } en settings "email-pedidos" no se manda nada.
 
 const DEFAULT_TO = "ineditarosario@gmail.com";
 const DEFAULT_FROM = "INEDITA Pedidos <onboarding@resend.dev>";
@@ -117,7 +117,7 @@ async function savedConfig(): Promise<SavedConfig> {
 
 export type EmailChannels = {
   resend: { apiKey: string; from: string; to: string[] } | null; // desde el servidor
-  browser: { to: string } | null; // FormSubmit, desde el navegador
+  browser: { to: string; cc: string[] } | null; // FormSubmit, desde el navegador
 };
 
 const emailList = (v: string | undefined) =>
@@ -140,12 +140,14 @@ export async function emailChannels(): Promise<EmailChannels> {
         to: resendTo.length ? resendTo : [inbox],
       }
     : null;
-  return { resend, browser: resend?.to.includes(inbox) ? null : { to: inbox } };
+  if (resend) return { resend, browser: resend.to.includes(inbox) ? null : { to: inbox, cc: [] } };
+  // Sin Resend, los destinatarios de MAIL_PEDIDOS reciben copia por FormSubmit
+  return { resend: null, browser: { to: inbox, cc: resendTo.filter((e) => e.toLowerCase() !== inbox.toLowerCase()) } };
 }
 
 /** El aviso del pedido para que lo mande el navegador (si va por FormSubmit). */
 export function orderBrowserNotice(channels: EmailChannels, o: OrderEmailInput, siteUrl: string): BrowserNotice | null {
-  return channels.browser ? formSubmitNotice(channels.browser.to, buildOrderEmail(o, siteUrl).subject, orderFields(o, siteUrl)) : null;
+  return channels.browser ? formSubmitNotice(channels.browser.to, buildOrderEmail(o, siteUrl).subject, orderFields(o, siteUrl), channels.browser.cc) : null;
 }
 
 async function recordStatus(value: Record<string, unknown>) {

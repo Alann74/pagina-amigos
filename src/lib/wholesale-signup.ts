@@ -115,5 +115,5 @@ const signupSubject = (c: WholesaleSignup) => `Nueva solicitud mayorista · ${c.
 export async function wholesaleSignupNotice(c: WholesaleSignup, later: (task: () => Promise<unknown>) => void): Promise<BrowserNotice | null> {
   const channels = await emailChannels();
   if (channels.resend) later(() => sendNotice(signupSubject(c), signupFields(c, SITE_URL)));
-  return channels.browser ? formSubmitNotice(channels.browser.to, signupSubject(c), signupFields(c, SITE_URL)) : null;
+  return channels.browser ? formSubmitNotice(channels.browser.to, signupSubject(c), signupFields(c, SITE_URL), channels.browser.cc) : null;
 }

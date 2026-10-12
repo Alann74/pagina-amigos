@@ -71,7 +71,7 @@ test("por FormSubmit: lo manda el navegador, con cada prenda y cada dato en su f
     return new Response("{}");
   }) as typeof fetch;
   const channels = await emailChannels();
-  assert.deepEqual(channels, { resend: null, browser: { to: "ineditarosario@gmail.com" } });
+  assert.deepEqual(channels, { resend: null, browser: { to: "ineditarosario@gmail.com", cc: [] } });
   assert.equal(await sendOrderEmail(pedido), "sin-resend");
   assert.equal(llamadas.length, 0);
 
@@ -86,13 +86,31 @@ test("por FormSubmit: lo manda el navegador, con cada prenda y cada dato en su f
   assert.equal(orderBrowserNotice({ resend: { apiKey: "re_x", from: "a", to: ["b"] }, browser: null }, pedido, "x"), null);
 });
 
+test("sin clave de Resend, MAIL_PEDIDOS recibe copia (CC) del aviso de FormSubmit", async () => {
+  process.env.MAIL_PEDIDOS = "duenio@ejemplo.com, IneditaRosario@gmail.com";
+  const channels = await emailChannels();
+  assert.deepEqual(channels, { resend: null, browser: { to: "ineditarosario@gmail.com", cc: ["duenio@ejemplo.com"] } });
+  const notice = orderBrowserNotice(channels, pedido, "x");
+  assert.deepEqual(notice?.cc, ["duenio@ejemplo.com"]);
+
+  const llamadas: { url: string; init: RequestInit }[] = [];
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    llamadas.push({ url, init });
+    return new Response("{}");
+  }) as typeof fetch;
+  sendBrowserNotice(notice);
+  assert.equal((llamadas[0].init.body as URLSearchParams).get("_cc"), "duenio@ejemplo.com");
+  sendBrowserNotice(formSubmitNotice("a@b.c", "x", {}));
+  assert.equal((llamadas[1].init.body as URLSearchParams).get("_cc"), null);
+});
+
 test("como el sistema mayorista: Resend a MAIL_PEDIDOS y, aparte, FormSubmit a la casilla de INEDITA", async () => {
   process.env.RESEND_API_KEY = "re_prueba";
   process.env.MAIL_PEDIDOS = "duenio@ejemplo.com, otro@ejemplo.com";
   const channels = await emailChannels();
   assert.deepEqual(channels.resend?.to, ["duenio@ejemplo.com", "otro@ejemplo.com"]);
   assert.equal(channels.resend?.from, "INEDITA Pedidos <onboarding@resend.dev>");
-  assert.deepEqual(channels.browser, { to: "ineditarosario@gmail.com" });
+  assert.deepEqual(channels.browser, { to: "ineditarosario@gmail.com", cc: [] });
   process.env.MAIL_REMITENTE = "INEDITA <pedidos@inedita.test>";
   assert.equal((await emailChannels()).resend?.from, "INEDITA <pedidos@inedita.test>");
 
