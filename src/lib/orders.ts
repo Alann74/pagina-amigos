@@ -204,7 +204,7 @@ export async function createOrder(input: OrderInput, settings: SiteSettings, use
         lineTotal: l.lineTotal,
       })),
     );
-    return { number: order.number, label, message };
+    return { id: order.id, number: order.number, label, message };
   });
 
   return {

@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { revalidateTag } from "next/cache";
+import { after } from "next/server";
 import { getSettings, TAGS } from "@/lib/catalog";
+import { sendOrderEmail } from "@/lib/order-email";
 import { createOrder, OrderError, orderInputSchema } from "@/lib/orders";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { wholesaleFromCookie } from "@/lib/wholesale";
@@ -26,6 +28,18 @@ export async function POST(request: Request) {
     const [settings, wholesale] = await Promise.all([getSettings(), wholesaleFromCookie((await cookies()).get(WHOLESALE_COOKIE)?.value)]);
     const order = await createOrder(parsed.data, settings, request.headers.get("user-agent"), wholesale);
     revalidateTag(TAGS.bestsellers, "max");
+    // Aviso por mail a INEDITA, después de responder (no demora el WhatsApp de la clienta)
+    after(() =>
+      sendOrderEmail({
+        id: order.id,
+        label: order.label,
+        message: order.message,
+        customerName: parsed.data.customerName,
+        customerPhone: parsed.data.customerPhone,
+        total: parsed.data.paymentMethod === "tarjeta" ? order.subtotal : order.cashTotal,
+        wholesale: Boolean(wholesale),
+      }),
+    );
     return Response.json(order, { status: 201 });
   } catch (error) {
     if (error instanceof OrderError) {
