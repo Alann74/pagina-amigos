@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { buildOrderEmail, sendOrderEmail, type OrderEmailInput } from "../../src/lib/order-email";
+import { buildOrderEmail, orderFields, sendOrderEmail, type OrderEmailInput } from "../../src/lib/order-email";
 
 const pedido: OrderEmailInput = {
   id: 42,
   label: "#INE-0042",
-  message: "Hola INEDITA! Quiero hacer este pedido #INE-0042:\n\n• Vestido <Lino> — Talle M — x1 — $45.000\n\nNombre: Ana Pérez",
+  message:
+    "Hola INEDITA! Quiero hacer este pedido #INE-0042:\n\n• Vestido <Lino> — Talle M — x1 — $45.000\n• Top — Talle S — Blanco — x1 — $18.000\n\nSubtotal: $63.000\nTotal con 10% OFF efectivo/transferencia: $56.700\n\nNombre: Ana Pérez\nTeléfono: 341 555-1234\nEntrega: Envío a coordinar — Fisherton\nPago: Transferencia\nComentario: Timbre 2B",
   customerName: "Ana Pérez",
   customerPhone: "341 555-1234",
   total: 40500,
@@ -51,5 +52,29 @@ test("si Resend falla no rompe el pedido", async () => {
   globalThis.fetch = (async () => new Response("no", { status: 403 })) as unknown as typeof fetch;
   assert.equal(await sendOrderEmail(pedido), "error");
   globalThis.fetch = (async () => Promise.reject(new TypeError("fetch failed"))) as unknown as typeof fetch;
+  assert.equal(await sendOrderEmail(pedido), "error");
+});
+
+test("por FormSubmit: cada prenda y cada dato en su fila, desde la dirección fija de la tienda", async () => {
+  const filas = orderFields(pedido, "https://inedita-tienda.vercel.app");
+  assert.deepEqual(Object.keys(filas), ["Pedido", "Prenda 1", "Prenda 2", "Subtotal", "Total con 10% OFF efectivo/transferencia", "Nombre", "Teléfono", "Entrega", "Pago", "Comentario", "Ver en el panel", "WhatsApp de la clienta"]);
+  assert.equal(filas["Prenda 2"], "Top — Talle S — Blanco — x1 — $18.000");
+  assert.equal(filas.Entrega, "Envío a coordinar — Fisherton");
+
+  const llamadas: { url: string; init: RequestInit }[] = [];
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    llamadas.push({ url, init });
+    return new Response(JSON.stringify({ success: "true", message: "The form was submitted successfully." }), { status: 200 });
+  }) as typeof fetch;
+  assert.equal(await sendOrderEmail(pedido), "enviado");
+  assert.equal(llamadas[0].url, "https://formsubmit.co/ajax/ineditarosario%40gmail.com");
+  const headers = llamadas[0].init.headers as Record<string, string>;
+  assert.equal(headers.referer, "https://inedita-tienda.vercel.app/");
+  const body = JSON.parse(String(llamadas[0].init.body));
+  assert.equal(body._subject, "Nuevo pedido web #INE-0042 · Ana Pérez · $40.500");
+  assert.equal(body["Prenda 1"], "Vestido <Lino> — Talle M — x1 — $45.000");
+
+  // Sin activar todavía: no sale, queda como error (el pedido sigue igual)
+  globalThis.fetch = (async () => new Response(JSON.stringify({ success: "false", message: "This form needs Activation." }), { status: 200 })) as unknown as typeof fetch;
   assert.equal(await sendOrderEmail(pedido), "error");
 });

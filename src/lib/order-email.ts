@@ -6,12 +6,15 @@ import { SITE_URL } from "@/lib/site";
 import { toWhatsappNumber, whatsappUrl } from "@/lib/whatsapp";
 
 // Cada pedido web llega también por mail a INEDITA (además del WhatsApp que manda la clienta).
-// Se manda con Resend (gratis hasta 3.000 por mes). La clave va en RESEND_API_KEY (Vercel) o en
-// settings "email-pedidos": { apiKey, to?, from? }. Sin dominio propio verificado en Resend, el
-// remitente es onboarding@resend.dev y solo puede mandar a la casilla con la que se creó la cuenta.
+// Por defecto se manda con FormSubmit (formsubmit.co, gratis y sin cuenta): la primera vez llega a la
+// casilla un mail "Activate Form" que hay que tocar una sola vez. Si se carga una clave de Resend
+// (RESEND_API_KEY o settings "email-pedidos": { apiKey }), se usa Resend. Con { activo: false } en
+// settings "email-pedidos" no se manda nada.
 
 const DEFAULT_TO = "ineditarosario@gmail.com";
 const DEFAULT_FROM = "INEDITA Pedidos <onboarding@resend.dev>";
+// FormSubmit identifica el formulario por la página de origen: siempre la misma, aunque cambie el dominio
+export const FORMSUBMIT_ORIGIN = "https://inedita-tienda.vercel.app";
 
 export type OrderEmailInput = {
   id: number;
@@ -36,27 +39,39 @@ export function buildOrderEmail(o: OrderEmailInput, siteUrl: string) {
 <pre style="white-space:pre-wrap;font-family:inherit;font-size:15px;margin:0 0 20px">${escapeHtml(o.message)}</pre>
 <p style="margin:0"><a href="${escapeHtml(adminUrl)}" style="color:#111">Ver el pedido en el panel</a> &nbsp;·&nbsp; <a href="${escapeHtml(toCustomer)}" style="color:#111">Escribirle por WhatsApp</a></p>
 </div>`;
-  return { subject, text, html };
+  return { subject, text, html, adminUrl, toCustomer };
 }
 
-async function savedConfig(): Promise<{ apiKey?: string; to?: string; from?: string }> {
+/**
+ * El mensaje del pedido como filas de una tabla (así lo arma FormSubmit): cada prenda en su fila y
+ * cada "Clave: valor" (totales, nombre, teléfono, entrega, pago, comentario) en la suya.
+ */
+export function orderFields(o: OrderEmailInput, siteUrl: string): Record<string, string> {
+  const { adminUrl, toCustomer } = buildOrderEmail(o, siteUrl);
+  const fields: Record<string, string> = { Pedido: `${o.label}${o.wholesale ? " (MAYORISTA)" : ""}` };
+  let prenda = 0;
+  for (const line of o.message.split("\n").slice(1)) {
+    const t = line.trim();
+    if (t.startsWith("• ")) fields[`Prenda ${++prenda}`] = t.slice(2);
+    else {
+      const i = t.indexOf(": ");
+      if (i > 0) fields[t.slice(0, i)] = t.slice(i + 2);
+    }
+  }
+  fields["Ver en el panel"] = adminUrl;
+  fields["WhatsApp de la clienta"] = toCustomer;
+  return fields;
+}
+
+type SavedConfig = { apiKey?: string; to?: string; from?: string; activo?: boolean };
+
+async function savedConfig(): Promise<SavedConfig> {
   try {
     const row = await db.query.settings.findFirst({ where: eq(settings.key, "email-pedidos") });
-    return (row?.value ?? {}) as { apiKey?: string; to?: string; from?: string };
+    return (row?.value ?? {}) as SavedConfig;
   } catch {
     return {}; // sin base (tests): alcanza con las variables de entorno
   }
-}
-
-async function emailConfig(): Promise<{ apiKey: string; to: string; from: string } | null> {
-  const saved = await savedConfig();
-  const apiKey = process.env.RESEND_API_KEY?.trim() || saved.apiKey?.trim();
-  if (!apiKey) return null;
-  return {
-    apiKey,
-    to: process.env.ORDERS_EMAIL?.trim() || saved.to?.trim() || DEFAULT_TO,
-    from: process.env.ORDERS_EMAIL_FROM?.trim() || saved.from?.trim() || DEFAULT_FROM,
-  };
 }
 
 async function recordStatus(value: Record<string, unknown>) {
@@ -68,25 +83,44 @@ async function recordStatus(value: Record<string, unknown>) {
   }
 }
 
-/** Manda el aviso del pedido. Nunca tira error: si falla queda anotado en settings "email-pedidos-estado". */
-export async function sendOrderEmail(o: OrderEmailInput): Promise<"enviado" | "sin-configurar" | "error"> {
-  const config = await emailConfig();
-  if (!config) return "sin-configurar";
+async function sendWithResend(apiKey: string, from: string, to: string, o: OrderEmailInput): Promise<string | null> {
   const { subject, text, html } = buildOrderEmail(o, SITE_URL);
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ from, to: [to], subject, text, html }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  return res.ok ? null : `Resend ${res.status} ${(await res.text()).slice(0, 300)}`;
+}
+
+/** Envío por FormSubmit (sin cuenta). Devuelve null si salió, o el motivo (ej. falta activar). */
+export async function sendWithFormSubmit(to: string, subject: string, fields: Record<string, string>): Promise<string | null> {
+  const res = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(to)}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json", origin: FORMSUBMIT_ORIGIN, referer: `${FORMSUBMIT_ORIGIN}/` },
+    body: JSON.stringify({ _subject: subject, _template: "table", _captcha: "false", ...fields }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const data = (await res.json().catch(() => null)) as { success?: string | boolean; message?: string } | null;
+  if (res.ok && (data?.success === true || data?.success === "true")) return null;
+  return `FormSubmit ${res.status}: ${data?.message ?? "sin respuesta"}`;
+}
+
+/** Manda el aviso del pedido. Nunca tira error: si falla queda anotado en settings "email-pedidos-estado". */
+export async function sendOrderEmail(o: OrderEmailInput): Promise<"enviado" | "desactivado" | "error"> {
+  const saved = await savedConfig();
+  if (saved.activo === false) return "desactivado";
+  const to = process.env.ORDERS_EMAIL?.trim() || saved.to?.trim() || DEFAULT_TO;
+  const apiKey = process.env.RESEND_API_KEY?.trim() || saved.apiKey?.trim();
+  let error: string | null;
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { authorization: `Bearer ${config.apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: config.from, to: [config.to], subject, text, html }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (res.ok) {
-      await recordStatus({ ultimo: o.label, ok: true });
-      return "enviado";
-    }
-    await recordStatus({ ultimo: o.label, ok: false, error: `${res.status} ${(await res.text()).slice(0, 300)}` });
+    error = apiKey
+      ? await sendWithResend(apiKey, process.env.ORDERS_EMAIL_FROM?.trim() || saved.from?.trim() || DEFAULT_FROM, to, o)
+      : await sendWithFormSubmit(to, buildOrderEmail(o, SITE_URL).subject, orderFields(o, SITE_URL));
   } catch (e) {
-    await recordStatus({ ultimo: o.label, ok: false, error: e instanceof Error ? e.message : String(e) });
+    error = e instanceof Error ? e.message : String(e);
   }
-  return "error";
+  await recordStatus(error ? { ultimo: o.label, ok: false, error } : { ultimo: o.label, ok: true });
+  return error ? "error" : "enviado";
 }
