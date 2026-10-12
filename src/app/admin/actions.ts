@@ -6,14 +6,18 @@ import { redirect } from "next/navigation";
 import { updateTag } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { categories, colors, orders, productImages, products, settings, variants, withdrawalRequests } from "@/db/schema";
+import { categories, colors, orders, productImages, products, settings, variants, wholesaleCustomers, withdrawalRequests } from "@/db/schema";
 import { ADMIN_COOKIE, checkPassword, createSessionToken } from "@/lib/admin-auth";
 import { requireAdmin } from "@/lib/admin-guard";
 import { TAGS } from "@/lib/catalog";
 import { slugify, sizeOrder } from "@/lib/format";
 import { roundPrice, type Rounding } from "@/lib/pricing";
 import { clientIp, isBlocked, recordFailure } from "@/lib/rate-limit";
+import { SITE_URL } from "@/lib/site";
 import { deleteFiles } from "@/lib/storage";
+import { hashCode, newPersonalCode } from "@/lib/wholesale";
+import { approvalMessage } from "@/lib/wholesale-signup";
+import { toWhatsappNumber, whatsappUrl } from "@/lib/whatsapp";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -531,11 +535,6 @@ export async function saveSettings(key: "site" | "pages" | "look", value: unknow
 
 const wholesaleSchema = z.object({
   enabled: z.boolean(),
-  code: z
-    .string()
-    .trim()
-    .max(40)
-    .transform((v) => v.toUpperCase().replace(/\s+/g, "")),
   minAmount: z.number().int().min(0).max(100_000_000),
   minUnits: z.number().int().min(0).max(10_000),
   cashDiscountPercent: z.number().int().min(0).max(90),
@@ -546,9 +545,53 @@ export async function saveWholesaleSettings(input: z.input<typeof wholesaleSchem
   try {
     await requireAdmin();
     const value = wholesaleSchema.parse(input);
-    if (value.enabled && value.code.length < 4) return { ok: false, error: "El código tiene que tener al menos 4 caracteres" };
     await db.insert(settings).values({ key: "wholesale", value }).onConflictDoUpdate({ target: settings.key, set: { value } });
     return { ok: true, message: value.enabled ? "Acceso mayorista activo" : "Guardado (acceso desactivado)" };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export type ApproveResult = { ok: true; message: string; code: string; whatsapp: string; text: string } | { ok: false; error: string };
+
+/** Aprueba un registro (o le genera un código nuevo): el código se ve una sola vez, en la base queda solo la huella. */
+export async function approveWholesaleCustomer(id: number): Promise<ApproveResult> {
+  try {
+    await requireAdmin();
+    const customer = await db.query.wholesaleCustomers.findFirst({ where: eq(wholesaleCustomers.id, id) });
+    if (!customer) return { ok: false, error: "No encontramos ese registro" };
+    const code = newPersonalCode();
+    await db
+      .update(wholesaleCustomers)
+      .set({ status: "aprobado", codeHash: hashCode(code), approvedAt: customer.approvedAt ?? new Date() })
+      .where(eq(wholesaleCustomers.id, id));
+    const text = approvalMessage(customer.name, code, SITE_URL);
+    return {
+      ok: true,
+      message: customer.status === "aprobado" ? "Código nuevo generado (el anterior ya no sirve)" : `${customer.name} aprobado`,
+      code,
+      text,
+      whatsapp: whatsappUrl(toWhatsappNumber(customer.phone), text),
+    };
+  } catch (e) {
+    const r = fail(e);
+    return r.ok ? { ok: false, error: "Error inesperado" } : r;
+  }
+}
+
+/** "rechazado": la solicitud no se aprueba. "baja": se le quita el acceso a un mayorista aprobado. */
+export async function setWholesaleCustomerStatus(id: number, status: "rechazado" | "baja" | "pendiente"): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const value = z.enum(["rechazado", "baja", "pendiente"]).parse(status);
+    const [row] = await db
+      .update(wholesaleCustomers)
+      .set({ status: value, codeHash: null })
+      .where(eq(wholesaleCustomers.id, id))
+      .returning({ name: wholesaleCustomers.name });
+    if (!row) return { ok: false, error: "No encontramos ese registro" };
+    const message = { rechazado: "Solicitud rechazada", baja: "Acceso quitado: ya no ve los precios por mayor", pendiente: "Vuelve a quedar pendiente" }[value];
+    return { ok: true, message: `${row.name}: ${message}` };
   } catch (e) {
     return fail(e);
   }

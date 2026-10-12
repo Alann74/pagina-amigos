@@ -36,7 +36,7 @@ async function OrderDetail({ params }: { params: PageProps<"/admin/pedidos/[id]"
   const { id } = await params;
   const data = /^\d+$/.test(id) ? await getOrderDetail(Number(id)) : null;
   if (!data) notFound();
-  const { order, items } = data;
+  const { order, items, wholesaleCustomer } = data;
   const label = formatOrderNumber(order.number);
   const firstName = order.customerName.split(" ")[0];
   const toCustomer = whatsappUrl(toWhatsappNumber(order.customerPhone), `Hola ${firstName}! Te escribimos de INEDITA por tu pedido ${label}.`);
@@ -102,6 +102,18 @@ async function OrderDetail({ params }: { params: PageProps<"/admin/pedidos/[id]"
           <Section title="Clienta">
             <dl>
               {order.channel === "mayorista" ? <Row label="Tipo">Pedido mayorista (precios por mayor)</Row> : null}
+              {wholesaleCustomer ? (
+                <Row label="Mayorista">
+                  <Link href="/admin/mayoristas" className="underline underline-offset-2">
+                    {wholesaleCustomer.name}
+                    {wholesaleCustomer.business ? ` · ${wholesaleCustomer.business}` : ""}
+                  </Link>
+                  <span className="block text-mute">
+                    {wholesaleCustomer.city} · {wholesaleCustomer.email}
+                    {wholesaleCustomer.taxId ? ` · CUIT/DNI ${wholesaleCustomer.taxId}` : ""}
+                  </span>
+                </Row>
+              ) : null}
               <Row label="Nombre">{order.customerName}</Row>
               <Row label="Teléfono">
                 <a href={`tel:${order.customerPhone.replace(/[^\d+]/g, "")}`} className="link-underline">

@@ -68,8 +68,17 @@ export class OrderError extends Error {
   }
 }
 
-/** `wholesale`: configuración mayorista si el pedido viene de alguien que entró con el código (si no, null). */
-export async function createOrder(input: OrderInput, settings: SiteSettings, userAgent: string | null, wholesale: WholesaleSettings | null = null) {
+/**
+ * `wholesale`: configuración mayorista si el pedido viene de un cliente mayorista aprobado (si no, null);
+ * `wholesaleCustomerId`: ese cliente, para ver sus pedidos en el panel.
+ */
+export async function createOrder(
+  input: OrderInput,
+  settings: SiteSettings,
+  userAgent: string | null,
+  wholesale: WholesaleSettings | null = null,
+  wholesaleCustomerId: number | null = null,
+) {
   // Agrupamos por variante por si el cliente mandó la misma dos veces
   const qtyByVariant = new Map<number, number>();
   for (const item of input.items) qtyByVariant.set(item.variantId, Math.min(10, (qtyByVariant.get(item.variantId) ?? 0) + item.quantity));
@@ -150,6 +159,7 @@ export async function createOrder(input: OrderInput, settings: SiteSettings, use
         discountPercent,
         whatsappMessage: "",
         channel: wholesale ? "mayorista" : "minorista",
+        wholesaleCustomerId: wholesale ? wholesaleCustomerId : null,
         promoCode: welcomeApplied?.code ?? null,
         utmSource: a?.utmSource ?? null,
         utmMedium: a?.utmMedium ?? null,

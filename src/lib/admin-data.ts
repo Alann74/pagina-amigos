@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, lte, ne, sql, type SQL } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { categories, colors, orderItems, orders, productImages, products, settings, subscribers, variants, withdrawalRequests } from "@/db/schema";
+import { categories, colors, orderItems, orders, productImages, products, settings, subscribers, variants, wholesaleCustomers, withdrawalRequests } from "@/db/schema";
 import { isAdmin } from "@/lib/admin-guard";
 
 // Lecturas del panel: siempre en vivo (sin caché) y solo con sesión de admin.
@@ -142,7 +142,13 @@ export async function getOrderDetail(id: number) {
     .leftJoin(products, eq(orderItems.productId, products.id))
     .where(eq(orderItems.orderId, id))
     .orderBy(asc(orderItems.id));
-  return { order, items };
+  const wholesaleCustomer = order.wholesaleCustomerId
+    ? ((await db.query.wholesaleCustomers.findFirst({
+        where: eq(wholesaleCustomers.id, order.wholesaleCustomerId),
+        columns: { name: true, business: true, city: true, email: true, taxId: true },
+      })) ?? null)
+    : null;
+  return { order, items, wholesaleCustomer };
 }
 
 // ---------------------------------------------------------------- tablero
@@ -167,12 +173,16 @@ export async function getDashboard() {
     })
     .from(products);
   const [withdrawals] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) }).from(withdrawalRequests).where(eq(withdrawalRequests.status, "nuevo"));
+  const [wholesaleSignups] = await db
+    .select({ count: sql<number>`count(*)`.mapWith(Number) })
+    .from(wholesaleCustomers)
+    .where(eq(wholesaleCustomers.status, "pendiente"));
   const recent = await db
     .select({ id: orders.id, number: orders.number, createdAt: orders.createdAt, status: orders.status, customerName: orders.customerName, subtotal: orders.subtotal, itemsCount: orders.itemsCount })
     .from(orders)
     .orderBy(desc(orders.createdAt))
     .limit(8);
-  return { month, pending: pending.count, catalog, withdrawals: withdrawals.count, recent };
+  return { month, pending: pending.count, catalog, withdrawals: withdrawals.count, wholesaleSignups: wholesaleSignups.count, recent };
 }
 
 // ---------------------------------------------------------------- productos

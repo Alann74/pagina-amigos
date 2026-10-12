@@ -25,8 +25,8 @@ export async function POST(request: Request) {
     return Response.json({ error: first?.message ?? "Revisá los datos del pedido", field: first?.path.join(".") }, { status: 400 });
   }
   try {
-    const [settings, wholesale] = await Promise.all([getSettings(), wholesaleFromCookie((await cookies()).get(WHOLESALE_COOKIE)?.value)]);
-    const order = await createOrder(parsed.data, settings, request.headers.get("user-agent"), wholesale);
+    const [settings, access] = await Promise.all([getSettings(), wholesaleFromCookie((await cookies()).get(WHOLESALE_COOKIE)?.value)]);
+    const order = await createOrder(parsed.data, settings, request.headers.get("user-agent"), access?.config ?? null, access?.customer.id ?? null);
     revalidateTag(TAGS.bestsellers, "max");
     // Aviso por mail a INEDITA, después de responder (no demora el WhatsApp de la clienta)
     after(() =>
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
         customerName: parsed.data.customerName,
         customerPhone: parsed.data.customerPhone,
         total: parsed.data.paymentMethod === "tarjeta" ? order.subtotal : order.cashTotal,
-        wholesale: Boolean(wholesale),
+        wholesale: Boolean(access),
       }),
     );
     return Response.json(order, { status: 201 });

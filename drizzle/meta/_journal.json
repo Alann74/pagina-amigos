@@ -29,6 +29,13 @@
       "when": 1791407748980,
       "tag": "0003_huella_de_fotos",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791777756955,
+      "tag": "0004_clientes_mayoristas",
+      "breakpoints": true
     }
   ]
 }

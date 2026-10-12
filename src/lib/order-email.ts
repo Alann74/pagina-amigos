@@ -107,6 +107,33 @@ export async function sendWithFormSubmit(to: string, subject: string, fields: Re
   return `FormSubmit ${res.status}: ${data?.message ?? "sin respuesta"}`;
 }
 
+/** Otros avisos a INEDITA (ej. solicitud mayorista), por la misma vía que los pedidos. Nunca tira error. */
+export async function sendNotice(subject: string, fields: Record<string, string>): Promise<"enviado" | "desactivado" | "error"> {
+  const saved = await savedConfig();
+  if (saved.activo === false) return "desactivado";
+  const to = process.env.ORDERS_EMAIL?.trim() || saved.to?.trim() || DEFAULT_TO;
+  const apiKey = process.env.RESEND_API_KEY?.trim() || saved.apiKey?.trim();
+  let error: string | null;
+  try {
+    if (apiKey) {
+      const text = Object.entries(fields)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join("\n");
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+        body: JSON.stringify({ from: process.env.ORDERS_EMAIL_FROM?.trim() || saved.from?.trim() || DEFAULT_FROM, to: [to], subject, text }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      error = res.ok ? null : `Resend ${res.status} ${(await res.text()).slice(0, 300)}`;
+    } else error = await sendWithFormSubmit(to, subject, fields);
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+  }
+  if (error) console.error("[aviso por mail]", subject, error);
+  return error ? "error" : "enviado";
+}
+
 /** Manda el aviso del pedido. Nunca tira error: si falla queda anotado en settings "email-pedidos-estado". */
 export async function sendOrderEmail(o: OrderEmailInput): Promise<"enviado" | "desactivado" | "error"> {
   const saved = await savedConfig();

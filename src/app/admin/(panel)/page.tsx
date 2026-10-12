@@ -49,6 +49,11 @@ async function Dashboard() {
           Hay {d.withdrawals} {d.withdrawals === 1 ? "solicitud" : "solicitudes"} de arrepentimiento sin responder →
         </Link>
       ) : null}
+      {d.wholesaleSignups ? (
+        <Link href="/admin/mayoristas" className="mt-6 block border border-ink p-4 text-[14px]">
+          Hay {d.wholesaleSignups} {d.wholesaleSignups === 1 ? "mayorista registrado" : "mayoristas registrados"} esperando tu aprobación →
+        </Link>
+      ) : null}
 
       <Section title="Últimos pedidos" aside={<Link href="/admin/pedidos" className="nav-link link-underline">Ver todos</Link>}>
         {d.recent.length === 0 ? (

@@ -36,47 +36,103 @@ test.describe("pop-up de bienvenida", () => {
   });
 });
 
-test("acceso mayorista con código", async ({ page, browser }, testInfo) => {
+test("mayorista: se registra, el admin lo aprueba y entra con su código personal", async ({ page, browser }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop", "Se prueba en escritorio");
   const password = adminPassword();
   test.skip(!password, "Falta ADMIN_PASSWORD");
+  const stamp = Date.now();
+  const name = `E2E Mayorista ${stamp}`;
 
-  // Configurar el código desde el admin
+  // Admin: acceso mayorista activo, sin mínimos
   await page.goto("/admin/mayoristas");
   await page.getByTestId("admin-password").fill(password!);
   await page.getByRole("button", { name: "Entrar" }).click();
   await page.waitForURL("**/admin/mayoristas");
   const toggle = page.getByRole("switch", { name: "Acceso mayorista activo" });
   if ((await toggle.getAttribute("aria-checked")) !== "true") await toggle.click();
-  await page.locator("#ws-code").fill("E2EMAYOR");
   await page.locator("#ws-min").fill("");
   await page.locator("#ws-units").fill("0");
   await page.getByTestId("wholesale-save").click();
   await expect(page.getByText("Acceso mayorista activo").last()).toBeVisible();
 
-  // Mayorista: código incorrecto y correcto
   const ctx = await browser.newContext();
   const shop = await ctx.newPage();
   // Precio de tienda del primer producto (para comparar después)
   await shop.goto("/productos");
   const firstCard = shop.getByTestId("product-card").first();
   const retailText = (await firstCard.locator("[data-price]").first().textContent())?.trim() ?? "";
+
+  // Mayorista: se registra con sus datos
   await shop.goto("/mayoristas");
-  await shop.getByTestId("wholesale-code").fill("nada");
+  await shop.getByTestId("wholesale-signup-send").click();
+  await expect(shop.getByText("Completá: Nombre y apellido")).toBeVisible();
+  await shop.getByTestId("ws-name").fill(name);
+  await shop.getByTestId("ws-business").fill("Showroom de prueba");
+  await shop.getByTestId("ws-phone").fill(`341 ${String(stamp).slice(-7)}`);
+  await shop.getByTestId("ws-email").fill("mal@");
+  await shop.getByTestId("ws-city").fill("Funes, Santa Fe");
+  await shop.getByTestId("ws-instagram").fill("@showroom.prueba");
+  await shop.getByText("Vendo online / redes").click();
+  await shop.getByTestId("wholesale-signup-send").click();
+  await expect(shop.getByText("Ingresá un mail válido")).toBeVisible();
+  await shop.getByTestId("ws-email").fill(`e2e-mayor-${stamp}@inedita.test`);
+  await shop.getByTestId("wholesale-signup-send").click();
+  await expect(shop.getByTestId("wholesale-signup-done")).toContainText("Recibimos tus datos");
+  // Sin aprobar todavía no hay código que sirva
+  await shop.goto("/mayoristas");
+  await shop.getByTestId("wholesale-tab-codigo").click();
+  await shop.getByTestId("wholesale-code").fill("NADA-NADA");
   await shop.getByTestId("wholesale-enter").click();
   await expect(shop.locator("p[role=alert]")).toHaveText("Código incorrecto");
-  await shop.getByTestId("wholesale-code").fill("e2emayor");
-  await shop.getByTestId("wholesale-enter").click();
-  // Entra a la tienda de siempre (mismo formato), con los precios por mayor
+
+  // Admin: lo ve pendiente con sus datos y lo aprueba
+  await page.reload();
+  const card = page.getByTestId("wholesale-pending").filter({ hasText: name });
+  await expect(card).toContainText("Showroom de prueba");
+  await expect(card).toContainText("@showroom.prueba");
+  await expect(card).toContainText("Vendo online / redes");
+  await card.getByTestId("wholesale-approve").click();
+  const code = (await page.getByTestId("wholesale-new-code").first().textContent())?.trim() ?? "";
+  expect(code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  const send = page.getByTestId("wholesale-send-code").first();
+  await expect(send).toHaveAttribute("href", new RegExp(`^https://wa\\.me/549341${String(stamp).slice(-7)}\\?text=.*mayoristas%3Fcodigo%3D${code}`));
+  await expect(page.getByTestId("wholesale-customer-row").filter({ hasText: name })).toBeVisible();
+
+  // El link del WhatsApp entra directo a la tienda de siempre, con los precios por mayor
+  await shop.goto(`/mayoristas?codigo=${code}`);
   await shop.waitForURL((u) => u.pathname === "/");
   await expect(shop.getByText("Modo mayorista · precios por mayor")).toBeVisible();
   await shop.goto("/productos");
   await expect(firstCard).toBeVisible();
   await expect(firstCard).not.toContainText(/Precio (por mayor|de tienda)/);
   await expect(firstCard.locator("[data-price]").first()).not.toHaveText(retailText);
-  // Salir vuelve a los precios de la tienda
-  await shop.getByRole("button", { name: "Salir" }).click();
-  await shop.waitForURL((u) => u.pathname === "/");
+  await shop.goto("/mayoristas");
+  await expect(shop.getByTestId("wholesale-active")).toContainText("Hola E2E!");
+
+  // Su pedido queda a nombre del cliente mayorista en el panel
+  await ctx.route(/https:\/\/(wa\.me|api\.whatsapp\.com)\/.*/, (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<html><body>WhatsApp</body></html>" }));
+  await addFirstAvailableProduct(shop);
+  await shop.goto("/carrito");
+  await shop.getByLabel("Nombre").fill(`Pedido ${name}`);
+  await shop.getByLabel("Teléfono / WhatsApp").fill("341 555-0000");
+  await shop.getByText(/^Retiro en/).click();
+  await shop.getByText("Transferencia", { exact: true }).click();
+  const waPage = ctx.waitForEvent("page");
+  await shop.getByTestId("send-order").click();
+  await (await waPage).close();
+  await expect(shop).toHaveURL(/\/pedido\//);
+  await page.goto("/admin/pedidos");
+  await page.getByTestId("orders-list").getByRole("link", { name: new RegExp(`Pedido ${name}`) }).click();
+  await expect(page.getByText("Pedido mayorista (precios por mayor)")).toBeVisible();
+  await expect(page.getByRole("link", { name: `${name} · Showroom de prueba` })).toBeVisible();
+  await page.goto("/admin/mayoristas");
+
+  // Admin le quita el acceso: deja de ver los precios por mayor
+  page.once("dialog", (d) => void d.accept());
+  await page.getByTestId("wholesale-customer-row").filter({ hasText: name }).getByRole("button", { name: "Quitar acceso" }).click();
+  await expect(page.getByText(`${name}: Acceso quitado`)).toBeVisible();
+  await shop.goto("/");
+  await shop.reload();
   await expect(shop.getByText("Modo mayorista · precios por mayor")).toBeHidden();
   await ctx.close();
 });

@@ -118,6 +118,31 @@ export const variants = pgTable(
   (t) => [index("variants_product_idx").on(t.productId)],
 );
 
+// Clientes mayoristas: se registran en /mayoristas con sus datos y el admin los aprueba. Al aprobar se
+// genera un código personal (se guarda solo su huella) que se manda por WhatsApp con el link de acceso.
+export const wholesaleCustomers = pgTable(
+  "wholesale_customers",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    business: text("business"),
+    taxId: text("tax_id"), // CUIT o DNI
+    phone: text("phone").notNull(),
+    email: text("email").notNull(),
+    city: text("city").notNull(), // localidad y provincia
+    instagram: text("instagram"),
+    salesChannel: text("sales_channel"), // local, online, revendedora, otro
+    comment: text("comment"),
+    // pendiente → aprobado / rechazado. "baja" = se le quitó el acceso
+    status: text("status").notNull().default("pendiente"),
+    codeHash: text("code_hash"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex("wholesale_customers_email_uidx").on(sql`lower(${t.email})`), index("wholesale_customers_status_idx").on(t.status)],
+);
+
 export const orderStatus = pgEnum("order_status", ["nuevo", "confirmado", "entregado", "cancelado"]);
 export const deliveryMethod = pgEnum("delivery_method", ["retiro", "envio"]);
 export const paymentMethod = pgEnum("payment_method", ["efectivo", "transferencia", "tarjeta"]);
@@ -144,6 +169,8 @@ export const orders = pgTable(
     whatsappMessage: text("whatsapp_message").notNull(),
     // "minorista" (tienda) o "mayorista" (entró con el código de /mayoristas)
     channel: text("channel").notNull().default("minorista"),
+    // Cliente mayorista registrado que hizo el pedido (si entró con su acceso personal)
+    wholesaleCustomerId: integer("wholesale_customer_id").references(() => wholesaleCustomers.id, { onDelete: "set null" }),
     // Código de bienvenida del pop-up (20% OFF en la primera compra) si se aplicó
     promoCode: text("promo_code"),
     utmSource: text("utm_source"),

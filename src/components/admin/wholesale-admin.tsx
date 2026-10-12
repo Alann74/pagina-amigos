@@ -2,20 +2,41 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { fetchSheetCsv, saveWholesalePrices, saveWholesaleSettings } from "@/app/admin/actions";
+import { approveWholesaleCustomer, fetchSheetCsv, saveWholesalePrices, saveWholesaleSettings, setWholesaleCustomerStatus } from "@/app/admin/actions";
 import { CopyButton } from "@/components/admin/copy-button";
 import { Field, FeedbackText, Section, Toggle, parseMoney, useAction } from "@/components/admin/ui";
-import { formatPrice } from "@/lib/format";
-import type { WholesaleSettings } from "@/lib/wholesale-config";
+import { WhatsAppIcon } from "@/components/icons";
+import { formatDate, formatPrice } from "@/lib/format";
+import { SALES_CHANNELS, type WholesaleSettings } from "@/lib/wholesale-config";
+import { toWhatsappNumber, whatsappUrl } from "@/lib/whatsapp";
 import { csvToRows, normalizeName, parsePriceTable, type Cell, type PriceRow } from "@/lib/wholesale-import";
 
 type Row = { id: number; name: string; articleCode: string | null; price: number; wholesalePrice: number | null; visible: boolean; categoryName: string | null };
 type Change = { id: number; name: string; articleCode: string | null; from: number | null; to: number };
 type Preview = { changes: Change[]; same: number; unknown: PriceRow[]; missing: Row[] };
+export type Customer = {
+  id: number;
+  name: string;
+  business: string | null;
+  taxId: string | null;
+  phone: string;
+  email: string;
+  city: string;
+  instagram: string | null;
+  salesChannel: string | null;
+  comment: string | null;
+  status: string; // pendiente, aprobado, rechazado, baja
+  createdAt: string;
+  approvedAt: string | null;
+  lastLoginAt: string | null;
+  orders: number;
+  lastOrderAt: string | null;
+};
 
-export function WholesaleAdmin({ config, link, rows }: { config: WholesaleSettings; link: string; rows: Row[] }) {
+export function WholesaleAdmin({ config, link, customers, rows }: { config: WholesaleSettings; link: string; customers: Customer[]; rows: Row[] }) {
   return (
     <>
+      <Customers customers={customers} />
       <AccessSettings config={config} link={link} />
       <PriceImport rows={rows} />
       <PriceTable rows={rows} />
@@ -27,18 +48,15 @@ function AccessSettings({ config, link }: { config: WholesaleSettings; link: str
   const [form, setForm] = useState({ ...config, minAmountText: config.minAmount ? String(config.minAmount) : "" });
   const action = useAction();
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
-  const share = `Hola! Te paso el acceso a la tienda de INEDITA con precios por mayor: ${link} · Código: ${form.code}`;
+  const share = `Hola! Para comprar por mayor en INEDITA registrate acá con los datos de tu negocio: ${link} · Cuando te aprobamos te llega por WhatsApp tu código para ver los precios.`;
 
   return (
     <Section title="Acceso" aside={<FeedbackText feedback={action.feedback} pending={action.pending} />}>
       <div className="grid max-w-3xl gap-6 sm:grid-cols-2">
         <div className="flex items-center gap-3 sm:col-span-2">
           <Toggle checked={form.enabled} onChange={(v) => set("enabled", v)} label="Acceso mayorista activo" />
-          <span className="text-[14px]">{form.enabled ? "Acceso activo" : "Acceso desactivado"}</span>
+          <span className="text-[14px]">{form.enabled ? "Activo: se pueden registrar y los aprobados ven los precios por mayor" : "Desactivado: nadie ve los precios por mayor ni se puede registrar"}</span>
         </div>
-        <Field label="Código de acceso" htmlFor="ws-code" hint="Si lo cambiás, los mayoristas que ya habían entrado tienen que volver a ingresar.">
-          <input id="ws-code" className="field uppercase tracking-[0.1em]" value={form.code} onChange={(e) => set("code", e.target.value.toUpperCase())} maxLength={40} />
-        </Field>
         <Field label="Descuento extra efectivo/transferencia (%)" htmlFor="ws-cash" hint="0 = los precios por mayor ya son finales.">
           <input id="ws-cash" className="field" inputMode="numeric" value={form.cashDiscountPercent} onChange={(e) => set("cashDiscountPercent", Number(e.target.value.replace(/\D/g, "")) || 0)} />
         </Field>
@@ -60,7 +78,6 @@ function AccessSettings({ config, link }: { config: WholesaleSettings; link: str
           action.run(() =>
             saveWholesaleSettings({
               enabled: form.enabled,
-              code: form.code,
               minAmount: parseMoney(form.minAmountText) ?? 0,
               minUnits: form.minUnits,
               cashDiscountPercent: form.cashDiscountPercent,
@@ -73,19 +90,308 @@ function AccessSettings({ config, link }: { config: WholesaleSettings; link: str
         Guardar
       </button>
       <div className="mt-8 max-w-3xl border border-line p-4 sm:p-5">
-        <p className="label text-mute">Link para mayoristas</p>
+        <p className="label text-mute">Link para registrarse</p>
         <p className="mt-2 break-all text-[15px]">{link}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <CopyButton text={link} label="Copiar link" />
-          {form.code ? <CopyButton text={share} label="Copiar mensaje con código" /> : null}
-          {form.code ? (
-            <a href={`https://wa.me/?text=${encodeURIComponent(share)}`} target="_blank" rel="noopener" className="label border border-ink px-3 py-2 hover:bg-ink hover:text-paper">
-              Mandar por WhatsApp
-            </a>
-          ) : null}
+          <CopyButton text={share} label="Copiar mensaje" />
+          <a href={`https://wa.me/?text=${encodeURIComponent(share)}`} target="_blank" rel="noopener" className="label border border-ink px-3 py-2 hover:bg-ink hover:text-paper">
+            Mandar por WhatsApp
+          </a>
         </div>
       </div>
     </Section>
+  );
+}
+
+const CHANNEL_LABEL: Record<string, string> = Object.fromEntries(SALES_CHANNELS.map((c) => [c.id, c.label]));
+const STATUS_LABEL: Record<string, string> = { pendiente: "Pendiente", aprobado: "Aprobado", rechazado: "Rechazado", baja: "Sin acceso" };
+
+type Approved = { id: number; name: string; code: string; whatsapp: string; text: string };
+
+function csvCell(v: string | number | null): string {
+  const t = v === null ? "" : String(v);
+  return `"${t.replace(/"/g, '""')}"`;
+}
+
+/** Planilla para Excel (separada por ";" y con BOM para que respete los acentos). */
+function downloadCsv(customers: Customer[]) {
+  const head = ["Nombre", "Negocio", "CUIT/DNI", "WhatsApp", "Mail", "Localidad", "Instagram", "Cómo vende", "Comentario", "Estado", "Registro", "Aprobado", "Último ingreso", "Pedidos", "Último pedido"];
+  const lines = customers.map((c) =>
+    [
+      c.name,
+      c.business,
+      c.taxId,
+      c.phone,
+      c.email,
+      c.city,
+      c.instagram ? `@${c.instagram}` : null,
+      c.salesChannel ? (CHANNEL_LABEL[c.salesChannel] ?? c.salesChannel) : null,
+      c.comment,
+      STATUS_LABEL[c.status] ?? c.status,
+      formatDate(c.createdAt),
+      c.approvedAt ? formatDate(c.approvedAt) : null,
+      c.lastLoginAt ? formatDate(c.lastLoginAt) : null,
+      c.orders,
+      c.lastOrderAt ? formatDate(c.lastOrderAt) : null,
+    ]
+      .map(csvCell)
+      .join(";"),
+  );
+  const blob = new Blob(["﻿" + [head.map(csvCell).join(";"), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `mayoristas-inedita-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function Customers({ customers }: { customers: Customer[] }) {
+  const router = useRouter();
+  const action = useAction();
+  const [justApproved, setJustApproved] = useState<Approved[]>([]);
+  const [query, setQuery] = useState("");
+  const pending = customers.filter((c) => c.status === "pendiente");
+  const approved = customers.filter((c) => c.status === "aprobado");
+  const others = customers.filter((c) => c.status === "rechazado" || c.status === "baja");
+  const shownApproved = useMemo(() => {
+    const q = normalizeName(query);
+    return q ? approved.filter((c) => normalizeName(`${c.name} ${c.business ?? ""} ${c.city} ${c.email} ${c.phone}`).includes(q)) : approved;
+  }, [approved, query]);
+
+  const approve = (c: Customer) => {
+    if (c.status === "aprobado" && !window.confirm(`¿Generar un código nuevo para ${c.name}? El que tiene ahora deja de funcionar.`)) return;
+    action.run(async () => {
+      const res = await approveWholesaleCustomer(c.id);
+      if (res.ok) {
+        setJustApproved((list) => [{ id: c.id, name: c.name, code: res.code, whatsapp: res.whatsapp, text: res.text }, ...list.filter((a) => a.id !== c.id)]);
+        router.refresh();
+      }
+      return res;
+    });
+  };
+  const changeStatus = (c: Customer, status: "rechazado" | "baja" | "pendiente", question: string) => {
+    if (question && !window.confirm(question)) return;
+    action.run(
+      () => setWholesaleCustomerStatus(c.id, status),
+      () => {
+        setJustApproved((list) => list.filter((a) => a.id !== c.id));
+        router.refresh();
+      },
+    );
+  };
+
+  return (
+    <Section
+      title={`Clientes mayoristas (${approved.length} ${approved.length === 1 ? "aprobado" : "aprobados"}${pending.length ? ` · ${pending.length} por revisar` : ""})`}
+      aside={
+        <div className="flex items-center gap-3">
+          <FeedbackText feedback={action.feedback} pending={action.pending} />
+          {customers.length ? (
+            <button type="button" className="label underline underline-offset-4" onClick={() => downloadCsv(customers)} data-testid="wholesale-csv">
+              Descargar planilla
+            </button>
+          ) : null}
+        </div>
+      }
+    >
+      {justApproved.map((a) => (
+        <div key={a.id} className="mb-4 max-w-3xl border-2 border-ink p-4 sm:p-5" data-testid="wholesale-approved">
+          <p className="text-[14px]">
+            <strong>{a.name}</strong> ya tiene acceso. Su código personal es{" "}
+            <span className="font-mono text-[16px] tracking-[0.12em]" data-testid="wholesale-new-code">
+              {a.code}
+            </span>
+          </p>
+          <p className="mt-1 text-[12.5px] text-mute">Mandáselo ahora: por seguridad el código no se guarda y no se vuelve a mostrar (si lo pierde, le generás uno nuevo).</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a href={a.whatsapp} target="_blank" rel="noopener" className="btn btn-primary gap-2" data-testid="wholesale-send-code">
+              <WhatsAppIcon size={16} /> Mandar por WhatsApp
+            </a>
+            <CopyButton text={a.text} label="Copiar mensaje" />
+            <button type="button" className="btn btn-secondary" onClick={() => setJustApproved((list) => list.filter((x) => x.id !== a.id))}>
+              Listo
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {customers.length === 0 ? (
+        <p className="max-w-2xl text-[14px] leading-relaxed text-mute">Todavía no se registró nadie. Compartí el link de registro (más abajo) con tus clientes mayoristas.</p>
+      ) : null}
+
+      {pending.length ? (
+        <div className="grid max-w-5xl gap-3 lg:grid-cols-2">
+          {pending.map((c) => (
+            <article key={c.id} className="border border-ink p-4" data-testid="wholesale-pending">
+              <CustomerData c={c} />
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" className="btn btn-primary" disabled={action.pending} onClick={() => approve(c)} data-testid="wholesale-approve">
+                  Aprobar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={action.pending}
+                  onClick={() => changeStatus(c, "rechazado", `¿Rechazar la solicitud de ${c.name}? No ve los precios por mayor (queda guardada en la lista de rechazados).`)}
+                >
+                  Rechazar
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : customers.length ? (
+        <p className="text-[14px] text-mute">No hay solicitudes nuevas para revisar.</p>
+      ) : null}
+
+      {approved.length ? (
+        <div className="mt-8">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="label">Aprobados</p>
+            {approved.length > 8 ? (
+              <input className="field max-w-xs" placeholder="Buscar nombre, negocio, localidad…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Buscar mayorista" />
+            ) : null}
+          </div>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[720px] text-[13px]">
+              <thead>
+                <tr className="label border-b border-line text-left text-mute">
+                  <th className="py-2 pr-3 font-normal">Cliente</th>
+                  <th className="py-2 pr-3 font-normal">Contacto</th>
+                  <th className="py-2 pr-3 font-normal">Localidad</th>
+                  <th className="py-2 pr-3 text-right font-normal">Pedidos</th>
+                  <th className="py-2 pr-3 font-normal">Último ingreso</th>
+                  <th className="py-2 font-normal" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {shownApproved.map((c) => (
+                  <tr key={c.id} data-testid="wholesale-customer-row">
+                    <td className="py-2 pr-3">
+                      {c.name}
+                      {c.business ? <span className="block text-mute">{c.business}</span> : null}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <a href={whatsappUrl(toWhatsappNumber(c.phone), `Hola ${c.name.split(/\s+/)[0]}! Te escribimos de INEDITA.`)} target="_blank" rel="noopener" className="underline underline-offset-2">
+                        {c.phone}
+                      </a>
+                      <a href={`mailto:${c.email}`} className="block text-mute underline-offset-2 hover:underline">
+                        {c.email}
+                      </a>
+                    </td>
+                    <td className="py-2 pr-3">{c.city}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">
+                      {c.orders}
+                      {c.lastOrderAt ? <span className="block text-mute">{formatDate(c.lastOrderAt)}</span> : null}
+                    </td>
+                    <td className="py-2 pr-3">{c.lastLoginAt ? formatDate(c.lastLoginAt, true) : <span className="text-mute">Todavía no entró</span>}</td>
+                    <td className="py-2 text-right">
+                      <div className="flex justify-end gap-3 whitespace-nowrap">
+                        <button type="button" className="label underline underline-offset-4" disabled={action.pending} onClick={() => approve(c)}>
+                          Código nuevo
+                        </button>
+                        <button
+                          type="button"
+                          className="label underline underline-offset-4"
+                          disabled={action.pending}
+                          onClick={() => changeStatus(c, "baja", `¿Quitarle el acceso a ${c.name}? Deja de ver los precios por mayor al instante.`)}
+                        >
+                          Quitar acceso
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {others.length ? (
+        <details className="mt-8 max-w-5xl">
+          <summary className="label cursor-pointer text-mute">Rechazados y sin acceso ({others.length})</summary>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            {others.map((c) => (
+              <article key={c.id} className="border border-line p-4">
+                <CustomerData c={c} />
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" className="btn btn-secondary" disabled={action.pending} onClick={() => approve(c)}>
+                    Aprobar
+                  </button>
+                  <button type="button" className="btn btn-secondary" disabled={action.pending} onClick={() => changeStatus(c, "pendiente", "")}>
+                    Volver a pendiente
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </Section>
+  );
+}
+
+function CustomerData({ c }: { c: Customer }) {
+  const firstName = c.name.split(/\s+/)[0];
+  return (
+    <>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-[15px]">
+          <strong className="font-medium">{c.name}</strong>
+          {c.business ? <span className="text-mute"> · {c.business}</span> : null}
+        </p>
+        <p className="label text-mute">
+          {c.status === "pendiente" ? "" : `${STATUS_LABEL[c.status] ?? c.status} · `}
+          {formatDate(c.createdAt, true)}
+        </p>
+      </div>
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[13px]">
+        <dt className="text-mute">WhatsApp</dt>
+        <dd>
+          <a href={whatsappUrl(toWhatsappNumber(c.phone), `Hola ${firstName}! Te escribimos de INEDITA por tu registro como mayorista.`)} target="_blank" rel="noopener" className="underline underline-offset-2">
+            {c.phone}
+          </a>
+        </dd>
+        <dt className="text-mute">Mail</dt>
+        <dd className="break-all">
+          <a href={`mailto:${c.email}`} className="underline underline-offset-2">
+            {c.email}
+          </a>
+        </dd>
+        <dt className="text-mute">Localidad</dt>
+        <dd>{c.city}</dd>
+        {c.taxId ? (
+          <>
+            <dt className="text-mute">CUIT/DNI</dt>
+            <dd>{c.taxId}</dd>
+          </>
+        ) : null}
+        {c.instagram ? (
+          <>
+            <dt className="text-mute">Instagram</dt>
+            <dd>
+              <a href={`https://instagram.com/${encodeURIComponent(c.instagram)}`} target="_blank" rel="noopener" className="underline underline-offset-2">
+                @{c.instagram}
+              </a>
+            </dd>
+          </>
+        ) : null}
+        {c.salesChannel ? (
+          <>
+            <dt className="text-mute">Vende</dt>
+            <dd>{CHANNEL_LABEL[c.salesChannel] ?? c.salesChannel}</dd>
+          </>
+        ) : null}
+        {c.comment ? (
+          <>
+            <dt className="text-mute">Comentario</dt>
+            <dd className="whitespace-pre-line">{c.comment}</dd>
+          </>
+        ) : null}
+      </dl>
+    </>
   );
 }
 
