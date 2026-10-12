@@ -15,7 +15,7 @@ import { roundPrice, type Rounding } from "@/lib/pricing";
 import { clientIp, isBlocked, recordFailure } from "@/lib/rate-limit";
 import { SITE_URL } from "@/lib/site";
 import { deleteFiles } from "@/lib/storage";
-import { hashCode, newPersonalCode } from "@/lib/wholesale";
+import { getWholesaleSettings, hashCode, newPersonalCode, orderRules } from "@/lib/wholesale";
 import { approvalMessage } from "@/lib/wholesale-signup";
 import { toWhatsappNumber, whatsappUrl } from "@/lib/whatsapp";
 
@@ -537,6 +537,7 @@ const wholesaleSchema = z.object({
   enabled: z.boolean(),
   minAmount: z.number().int().min(0).max(100_000_000),
   minUnits: z.number().int().min(0).max(10_000),
+  firstOrderMinUnits: z.number().int().min(0).max(10_000),
   cashDiscountPercent: z.number().int().min(0).max(90),
   note: z.string().trim().max(400),
 });
@@ -554,18 +555,24 @@ export async function saveWholesaleSettings(input: z.input<typeof wholesaleSchem
 
 export type ApproveResult = { ok: true; message: string; code: string; whatsapp: string; text: string } | { ok: false; error: string };
 
-/** Aprueba un registro (o le genera un código nuevo): el código se ve una sola vez, en la base queda solo la huella. */
-export async function approveWholesaleCustomer(id: number): Promise<ApproveResult> {
+/**
+ * Aprueba un registro (o le genera un código nuevo): el código se ve una sola vez, en la base queda solo la huella.
+ * `existingCustomer`: si ya era clienta (sin mínimo en la primera compra); sin dato, queda como estaba.
+ */
+export async function approveWholesaleCustomer(id: number, existingCustomer?: boolean): Promise<ApproveResult> {
   try {
     await requireAdmin();
     const customer = await db.query.wholesaleCustomers.findFirst({ where: eq(wholesaleCustomers.id, id) });
     if (!customer) return { ok: false, error: "No encontramos ese registro" };
+    const existing = typeof existingCustomer === "boolean" ? existingCustomer : customer.existingCustomer;
     const code = newPersonalCode();
     await db
       .update(wholesaleCustomers)
-      .set({ status: "aprobado", codeHash: hashCode(code), approvedAt: customer.approvedAt ?? new Date() })
+      .set({ status: "aprobado", codeHash: hashCode(code), approvedAt: customer.approvedAt ?? new Date(), existingCustomer: existing })
       .where(eq(wholesaleCustomers.id, id));
-    const text = approvalMessage(customer.name, code, SITE_URL);
+    // El WhatsApp avisa el mínimo de la primera compra solo si le corresponde
+    const rules = await orderRules({ config: await getWholesaleSettings(), customer: { ...customer, existingCustomer: existing } });
+    const text = approvalMessage(customer.name, code, SITE_URL, rules.firstOrder ? rules.minUnits : 0);
     return {
       ok: true,
       message: customer.status === "aprobado" ? "Código nuevo generado (el anterior ya no sirve)" : `${customer.name} aprobado`,
@@ -576,6 +583,19 @@ export async function approveWholesaleCustomer(id: number): Promise<ApproveResul
   } catch (e) {
     const r = fail(e);
     return r.ok ? { ok: false, error: "Error inesperado" } : r;
+  }
+}
+
+/** Ya era clienta de INEDITA (sin mínimo en la primera compra) o clienta nueva (con el mínimo de primera compra). */
+export async function setWholesaleExistingCustomer(id: number, existingCustomer: boolean): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const value = z.boolean().parse(existingCustomer);
+    const [row] = await db.update(wholesaleCustomers).set({ existingCustomer: value }).where(eq(wholesaleCustomers.id, id)).returning({ name: wholesaleCustomers.name });
+    if (!row) return { ok: false, error: "No encontramos ese registro" };
+    return { ok: true, message: value ? `${row.name}: ya es clienta, sin mínimo en la primera compra` : `${row.name}: clienta nueva, con mínimo en la primera compra` };
+  } catch (e) {
+    return fail(e);
   }
 }
 

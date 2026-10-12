@@ -5,7 +5,7 @@ import { getSettings, TAGS } from "@/lib/catalog";
 import { sendOrderEmail } from "@/lib/order-email";
 import { createOrder, OrderError, orderInputSchema } from "@/lib/orders";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { wholesaleFromCookie } from "@/lib/wholesale";
+import { orderRules, wholesaleFromCookie } from "@/lib/wholesale";
 import { WHOLESALE_COOKIE } from "@/lib/wholesale-config";
 
 export async function POST(request: Request) {
@@ -26,7 +26,8 @@ export async function POST(request: Request) {
   }
   try {
     const [settings, access] = await Promise.all([getSettings(), wholesaleFromCookie((await cookies()).get(WHOLESALE_COOKIE)?.value)]);
-    const order = await createOrder(parsed.data, settings, request.headers.get("user-agent"), access?.config ?? null, access?.customer.id ?? null);
+    const rules = access ? await orderRules(access) : null;
+    const order = await createOrder(parsed.data, settings, request.headers.get("user-agent"), rules, access?.customer.id ?? null);
     revalidateTag(TAGS.bestsellers, "max");
     // Aviso por mail a INEDITA, después de responder (no demora el WhatsApp de la clienta)
     after(() =>

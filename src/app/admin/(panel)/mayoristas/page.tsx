@@ -64,6 +64,7 @@ async function Content() {
         salesChannel: c.salesChannel,
         comment: c.comment,
         status: c.status,
+        existingCustomer: c.existingCustomer,
         createdAt: iso(c.createdAt)!,
         approvedAt: iso(c.approvedAt),
         lastLoginAt: iso(c.lastLoginAt),

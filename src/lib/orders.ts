@@ -6,7 +6,7 @@ import { colors, orderItems, orders, products, subscribers, variants } from "@/d
 import { cashPrice, formatOrderNumber, formatPrice } from "@/lib/format";
 import type { SiteSettings } from "@/lib/site-config";
 import { findUnusedWelcome } from "@/lib/welcome";
-import type { WholesaleSettings } from "@/lib/wholesale-config";
+import type { WholesaleOrderRules } from "@/lib/wholesale";
 import { buildOrderMessage, whatsappUrl } from "@/lib/whatsapp";
 
 const optionalText = (max: number) =>
@@ -69,14 +69,14 @@ export class OrderError extends Error {
 }
 
 /**
- * `wholesale`: configuración mayorista si el pedido viene de un cliente mayorista aprobado (si no, null);
+ * `wholesale`: reglas mayoristas (precios, mínimos) si el pedido viene de un cliente mayorista aprobado (si no, null);
  * `wholesaleCustomerId`: ese cliente, para ver sus pedidos en el panel.
  */
 export async function createOrder(
   input: OrderInput,
   settings: SiteSettings,
   userAgent: string | null,
-  wholesale: WholesaleSettings | null = null,
+  wholesale: WholesaleOrderRules | null = null,
   wholesaleCustomerId: number | null = null,
 ) {
   // Agrupamos por variante por si el cliente mandó la misma dos veces
@@ -130,7 +130,12 @@ export async function createOrder(
     throw new OrderError(`La compra mínima mayorista es de ${formatPrice(wholesale.minAmount)}. Te faltan ${formatPrice(wholesale.minAmount - subtotal)}.`, 400);
   }
   if (wholesale && wholesale.minUnits > 0 && itemsCount < wholesale.minUnits) {
-    throw new OrderError(`El pedido mayorista mínimo es de ${wholesale.minUnits} prendas (llevás ${itemsCount}).`, 400);
+    throw new OrderError(
+      wholesale.firstOrder
+        ? `Tu primera compra por mayor tiene un mínimo de ${wholesale.minUnits} prendas (llevás ${itemsCount}).`
+        : `El pedido mayorista mínimo es de ${wholesale.minUnits} prendas (llevás ${itemsCount}).`,
+      400,
+    );
   }
   let discountPercent = wholesale ? wholesale.cashDiscountPercent : settings.promo.cashDiscountPercent;
   // Bienvenida del pop-up: primera compra pagando en efectivo o transferencia (no se suma: queda el mayor)

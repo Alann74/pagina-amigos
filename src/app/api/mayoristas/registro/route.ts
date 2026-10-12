@@ -28,7 +28,11 @@ export async function POST(request: Request) {
     const result = await registerWholesaleCustomer(parsed.data);
     // Aviso a INEDITA después de responder (si ya estaba pendiente, ya se avisó la primera vez)
     if (result.status === "recibido") after(() => notifyWholesaleSignup(parsed.data));
-    return Response.json({ status: result.status }, { status: result.status === "recibido" ? 201 : 200, headers: PRIVATE });
+    // El mínimo de la primera compra se avisa en la confirmación (a las que ya eran clientas se les saca al aprobarlas)
+    return Response.json(
+      { status: result.status, firstOrderMinUnits: config.firstOrderMinUnits },
+      { status: result.status === "recibido" ? 201 : 200, headers: PRIVATE },
+    );
   } catch (error) {
     console.error("[mayoristas] error en el registro", error);
     return Response.json({ error: "No pudimos guardar tus datos. Probá de nuevo o escribinos por WhatsApp." }, { status: 500, headers: PRIVATE });

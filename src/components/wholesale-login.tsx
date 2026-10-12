@@ -181,6 +181,7 @@ function SignupForm({ whatsappNumber, onHasCode }: { whatsappNumber: string; onH
   const [error, setError] = useState<{ message: string; field?: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState<"recibido" | "ya-pendiente" | "ya-aprobado" | null>(null);
+  const [firstOrderMin, setFirstOrderMin] = useState(0);
 
   const set = (key: keyof SignupData, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -212,6 +213,7 @@ function SignupForm({ whatsappNumber, onHasCode }: { whatsappNumber: string; onH
         return;
       }
       setDone(data.status ?? "recibido");
+      setFirstOrderMin(Number(data.firstOrderMinUnits) || 0);
     } catch {
       setError({ message: "No pudimos conectarnos. Probá de nuevo." });
     }
@@ -235,6 +237,11 @@ function SignupForm({ whatsappNumber, onHasCode }: { whatsappNumber: string; onH
               {done === "ya-pendiente" ? `Gracias ${firstName}! Ya teníamos tu solicitud y actualizamos tus datos.` : `Gracias ${firstName}! Recibimos tus datos.`} Cuando
               aprobemos tu cuenta te mandamos por WhatsApp tu código personal para ver los precios por mayor.
             </p>
+            {firstOrderMin > 0 ? (
+              <p className="text-[13px] leading-relaxed text-mute" data-testid="wholesale-first-min">
+                Para clientas nuevas, la primera compra por mayor es de mínimo {firstOrderMin} prendas.
+              </p>
+            ) : null}
             <a
               href={whatsappUrl(whatsappNumber, `Hola INEDITA! Me registré como mayorista: ${form.name.trim()}${form.business.trim() ? ` (${form.business.trim()})` : ""}.`)}
               target="_blank"

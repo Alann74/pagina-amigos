@@ -1,0 +1,1 @@
+ALTER TABLE "wholesale_customers" ADD COLUMN "existing_customer" boolean DEFAULT false NOT NULL;

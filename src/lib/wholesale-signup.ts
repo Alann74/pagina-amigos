@@ -93,13 +93,16 @@ export function signupFields(c: WholesaleSignup, siteUrl: string): Record<string
 }
 
 /** WhatsApp que se le manda al aprobarlo: el link ya trae el código y entra directo. */
-export function approvalMessage(name: string, code: string, siteUrl: string): string {
+export function approvalMessage(name: string, code: string, siteUrl: string, firstOrderMinUnits = 0): string {
   const firstName = name.trim().split(/\s+/)[0] ?? "";
   return [
     `Hola ${firstName}! Ya tenés acceso a la tienda de INEDITA con precios por mayor.`,
     `Entrá desde este link: ${siteUrl}/mayoristas?codigo=${code}`,
+    firstOrderMinUnits > 0 ? `Tu primera compra tiene un mínimo de ${firstOrderMinUnits} prendas.` : null,
     `Tu código personal es ${code} (es solo para vos, no lo compartas). Cualquier consulta escribinos por acá.`,
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 /** Aviso a INEDITA de una solicitud nueva. Nunca tira error. */

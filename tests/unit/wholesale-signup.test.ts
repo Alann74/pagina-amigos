@@ -70,6 +70,9 @@ test("WhatsApp de aprobación: link que entra directo y el código", () => {
   assert.match(text, /^Hola Laura! Ya tenés acceso a la tienda de INEDITA con precios por mayor\./);
   assert.ok(text.includes("https://inedita-tienda.vercel.app/mayoristas?codigo=K7PM-Q3XD"));
   assert.ok(text.includes("Tu código personal es K7PM-Q3XD"));
+  assert.ok(!text.includes("mínimo"));
+  // Clienta nueva: avisa el mínimo de la primera compra
+  assert.ok(approvalMessage("Laura", "K7PM-Q3XD", "https://x.test", 25).includes("Tu primera compra tiene un mínimo de 25 prendas."));
 });
 
 test("mail de aviso: todos los datos y los links para aprobar y escribirle", () => {

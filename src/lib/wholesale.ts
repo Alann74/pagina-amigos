@@ -1,7 +1,7 @@
 import { createHash, randomInt } from "node:crypto";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, count, eq, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { products, settings, wholesaleCustomers } from "@/db/schema";
+import { orders, products, settings, wholesaleCustomers } from "@/db/schema";
 import { safeEqual, signValue } from "@/lib/admin-auth";
 import { DEFAULT_WHOLESALE, type WholesaleSession, type WholesaleSettings } from "@/lib/wholesale-config";
 
@@ -10,8 +10,8 @@ export const WHOLESALE_MAX_AGE = 60 * 24 * 60 * 60; // 60 días
 /** Sin caché: la configuración mayorista no se guarda en páginas ni en datos compartidos. */
 export async function getWholesaleSettings(): Promise<WholesaleSettings> {
   const row = await db.query.settings.findFirst({ where: eq(settings.key, "wholesale") });
-  const { enabled, minAmount, minUnits, cashDiscountPercent, note } = { ...DEFAULT_WHOLESALE, ...((row?.value as Partial<WholesaleSettings>) ?? {}) };
-  return { enabled, minAmount, minUnits, cashDiscountPercent, note };
+  const { enabled, minAmount, minUnits, firstOrderMinUnits, cashDiscountPercent, note } = { ...DEFAULT_WHOLESALE, ...((row?.value as Partial<WholesaleSettings>) ?? {}) };
+  return { enabled, minAmount, minUnits, firstOrderMinUnits, cashDiscountPercent, note };
 }
 
 export function normalizeCode(code: string): string {
@@ -40,7 +40,7 @@ export function createWholesaleToken(customerId: number, codeHash: string): stri
   return `${payload}.${signValue("mayorista", payload)}`;
 }
 
-export type WholesaleAccess = { config: WholesaleSettings; customer: { id: number; name: string; business: string | null } };
+export type WholesaleAccess = { config: WholesaleSettings; customer: { id: number; name: string; business: string | null; existingCustomer: boolean } };
 
 /** Acceso válido: token firmado y vigente, de un cliente aprobado con el mismo código, y el canal mayorista activo. */
 export async function wholesaleFromCookie(token: string | undefined | null): Promise<WholesaleAccess | null> {
@@ -57,10 +57,10 @@ export async function wholesaleFromCookie(token: string | undefined | null): Pro
   if (!config.enabled) return null;
   const customer = await db.query.wholesaleCustomers.findFirst({
     where: and(eq(wholesaleCustomers.id, Number(id)), eq(wholesaleCustomers.status, "aprobado")),
-    columns: { id: true, name: true, business: true, codeHash: true },
+    columns: { id: true, name: true, business: true, existingCustomer: true, codeHash: true },
   });
   if (!customer?.codeHash || !customer.codeHash.startsWith(fp)) return null;
-  return { config, customer: { id: customer.id, name: customer.name, business: customer.business } };
+  return { config, customer: { id: customer.id, name: customer.name, business: customer.business, existingCustomer: customer.existingCustomer } };
 }
 
 /** Cliente aprobado con ese código personal (o null). */
@@ -74,13 +74,35 @@ export async function customerByCode(code: string) {
   );
 }
 
+export type WholesaleOrderRules = WholesaleSettings & { firstOrder: boolean };
+
+/**
+ * Las reglas para el próximo pedido de este cliente: en su primera compra (sin pedidos que no estén
+ * cancelados) rige el mínimo de prendas de primera compra, salvo que ya fuera clienta de INEDITA.
+ */
+export async function orderRules(access: WholesaleAccess): Promise<WholesaleOrderRules> {
+  const { config, customer } = access;
+  const firstMin = customer.existingCustomer ? 0 : config.firstOrderMinUnits;
+  if (firstMin <= config.minUnits) return { ...config, firstOrder: false };
+  const [row] = await db
+    .select({ n: count() })
+    .from(orders)
+    .where(and(eq(orders.wholesaleCustomerId, customer.id), ne(orders.status, "cancelado")));
+  const firstOrder = (row?.n ?? 0) === 0;
+  return { ...config, minUnits: firstOrder ? firstMin : config.minUnits, firstOrder };
+}
+
 export async function getWholesaleSession(access: WholesaleAccess): Promise<WholesaleSession> {
-  const rows = await db.select({ id: products.id, price: products.wholesalePrice }).from(products).where(isNotNull(products.wholesalePrice));
+  const [rows, rules] = await Promise.all([
+    db.select({ id: products.id, price: products.wholesalePrice }).from(products).where(isNotNull(products.wholesalePrice)),
+    orderRules(access),
+  ]);
   return {
     customer: { name: access.customer.name, business: access.customer.business },
     prices: Object.fromEntries(rows.filter((r) => r.price && r.price > 0).map((r) => [r.id, r.price!])),
-    minAmount: access.config.minAmount,
-    minUnits: access.config.minUnits,
+    minAmount: rules.minAmount,
+    minUnits: rules.minUnits,
+    firstOrder: rules.firstOrder,
     cashDiscountPercent: access.config.cashDiscountPercent,
     note: access.config.note,
   };

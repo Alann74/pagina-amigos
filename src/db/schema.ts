@@ -133,6 +133,8 @@ export const wholesaleCustomers = pgTable(
     instagram: text("instagram"),
     salesChannel: text("sales_channel"), // local, online, revendedora, otro
     comment: text("comment"),
+    // Ya era clienta de INEDITA: su primera compra por mayor no tiene el mínimo de prendas de las nuevas
+    existingCustomer: boolean("existing_customer").notNull().default(false),
     // pendiente → aprobado / rechazado. "baja" = se le quitó el acceso
     status: text("status").notNull().default("pendiente"),
     codeHash: text("code_hash"),

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { approveWholesaleCustomer, fetchSheetCsv, saveWholesalePrices, saveWholesaleSettings, setWholesaleCustomerStatus } from "@/app/admin/actions";
+import { approveWholesaleCustomer, fetchSheetCsv, saveWholesalePrices, saveWholesaleSettings, setWholesaleCustomerStatus, setWholesaleExistingCustomer } from "@/app/admin/actions";
 import { CopyButton } from "@/components/admin/copy-button";
 import { Field, FeedbackText, Section, Toggle, parseMoney, useAction } from "@/components/admin/ui";
 import { WhatsAppIcon } from "@/components/icons";
@@ -26,6 +26,7 @@ export type Customer = {
   salesChannel: string | null;
   comment: string | null;
   status: string; // pendiente, aprobado, rechazado, baja
+  existingCustomer: boolean; // ya era clienta: sin mínimo en la primera compra
   createdAt: string;
   approvedAt: string | null;
   lastLoginAt: string | null;
@@ -36,7 +37,7 @@ export type Customer = {
 export function WholesaleAdmin({ config, link, customers, rows }: { config: WholesaleSettings; link: string; customers: Customer[]; rows: Row[] }) {
   return (
     <>
-      <Customers customers={customers} />
+      <Customers customers={customers} firstOrderMinUnits={config.firstOrderMinUnits} />
       <AccessSettings config={config} link={link} />
       <PriceImport rows={rows} />
       <PriceTable rows={rows} />
@@ -63,7 +64,16 @@ function AccessSettings({ config, link }: { config: WholesaleSettings; link: str
         <Field label="Compra mínima ($)" htmlFor="ws-min" hint="Vacío = sin mínimo.">
           <input id="ws-min" className="field" inputMode="numeric" placeholder="Sin mínimo" value={form.minAmountText} onChange={(e) => set("minAmountText", e.target.value)} />
         </Field>
-        <Field label="Mínimo de prendas" htmlFor="ws-units" hint="0 = sin mínimo.">
+        <Field label="Mínimo de prendas en la primera compra" htmlFor="ws-first-units" hint="Para cada mayorista nuevo. A las que aprobás como “ya es mi clienta” no se les pide. 0 = sin mínimo.">
+          <input
+            id="ws-first-units"
+            className="field"
+            inputMode="numeric"
+            value={form.firstOrderMinUnits}
+            onChange={(e) => set("firstOrderMinUnits", Number(e.target.value.replace(/\D/g, "")) || 0)}
+          />
+        </Field>
+        <Field label="Mínimo de prendas en todos los pedidos" htmlFor="ws-units" hint="Para todas, en cada pedido. 0 = sin mínimo.">
           <input id="ws-units" className="field" inputMode="numeric" value={form.minUnits} onChange={(e) => set("minUnits", Number(e.target.value.replace(/\D/g, "")) || 0)} />
         </Field>
         <Field label="Texto para mayoristas" htmlFor="ws-note" hint="Se ve en la bolsa al armar el pedido.">
@@ -80,6 +90,7 @@ function AccessSettings({ config, link }: { config: WholesaleSettings; link: str
               enabled: form.enabled,
               minAmount: parseMoney(form.minAmountText) ?? 0,
               minUnits: form.minUnits,
+              firstOrderMinUnits: form.firstOrderMinUnits,
               cashDiscountPercent: form.cashDiscountPercent,
               note: form.note,
             }),
@@ -95,8 +106,8 @@ function AccessSettings({ config, link }: { config: WholesaleSettings; link: str
         <div className="mt-3 flex flex-wrap gap-2">
           <CopyButton text={link} label="Copiar link" />
           <CopyButton text={share} label="Copiar mensaje" />
-          <a href={`https://wa.me/?text=${encodeURIComponent(share)}`} target="_blank" rel="noopener" className="label border border-ink px-3 py-2 hover:bg-ink hover:text-paper">
-            Mandar por WhatsApp
+          <a href={`https://wa.me/?text=${encodeURIComponent(share)}`} target="_blank" rel="noopener" className="btn btn-secondary gap-2">
+            <WhatsAppIcon size={16} /> Mandar por WhatsApp
           </a>
         </div>
       </div>
@@ -116,7 +127,7 @@ function csvCell(v: string | number | null): string {
 
 /** Planilla para Excel (separada por ";" y con BOM para que respete los acentos). */
 function downloadCsv(customers: Customer[]) {
-  const head = ["Nombre", "Negocio", "CUIT/DNI", "WhatsApp", "Mail", "Localidad", "Instagram", "Cómo vende", "Comentario", "Estado", "Registro", "Aprobado", "Último ingreso", "Pedidos", "Último pedido"];
+  const head = ["Nombre", "Negocio", "CUIT/DNI", "WhatsApp", "Mail", "Localidad", "Instagram", "Cómo vende", "Comentario", "Estado", "Registro", "Aprobado", "Último ingreso", "Pedidos", "Último pedido", "Ya era clienta"];
   const lines = customers.map((c) =>
     [
       c.name,
@@ -134,6 +145,7 @@ function downloadCsv(customers: Customer[]) {
       c.lastLoginAt ? formatDate(c.lastLoginAt) : null,
       c.orders,
       c.lastOrderAt ? formatDate(c.lastOrderAt) : null,
+      c.existingCustomer ? "Sí" : "No",
     ]
       .map(csvCell)
       .join(";"),
@@ -146,10 +158,12 @@ function downloadCsv(customers: Customer[]) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-function Customers({ customers }: { customers: Customer[] }) {
+function Customers({ customers, firstOrderMinUnits }: { customers: Customer[]; firstOrderMinUnits: number }) {
   const router = useRouter();
   const action = useAction();
   const [justApproved, setJustApproved] = useState<Approved[]>([]);
+  // En las solicitudes pendientes: ¿ya es clienta? (por defecto, clienta nueva con el mínimo de primera compra)
+  const [existing, setExisting] = useState<Record<number, boolean>>({});
   const [query, setQuery] = useState("");
   const pending = customers.filter((c) => c.status === "pendiente");
   const approved = customers.filter((c) => c.status === "aprobado");
@@ -159,10 +173,10 @@ function Customers({ customers }: { customers: Customer[] }) {
     return q ? approved.filter((c) => normalizeName(`${c.name} ${c.business ?? ""} ${c.city} ${c.email} ${c.phone}`).includes(q)) : approved;
   }, [approved, query]);
 
-  const approve = (c: Customer) => {
+  const approve = (c: Customer, existingCustomer?: boolean) => {
     if (c.status === "aprobado" && !window.confirm(`¿Generar un código nuevo para ${c.name}? El que tiene ahora deja de funcionar.`)) return;
     action.run(async () => {
-      const res = await approveWholesaleCustomer(c.id);
+      const res = await approveWholesaleCustomer(c.id, existingCustomer);
       if (res.ok) {
         setJustApproved((list) => [{ id: c.id, name: c.name, code: res.code, whatsapp: res.whatsapp, text: res.text }, ...list.filter((a) => a.id !== c.id)]);
         router.refresh();
@@ -170,6 +184,7 @@ function Customers({ customers }: { customers: Customer[] }) {
       return res;
     });
   };
+  const changeExisting = (c: Customer, value: boolean) => action.run(() => setWholesaleExistingCustomer(c.id, value), () => router.refresh());
   const changeStatus = (c: Customer, status: "rechazado" | "baja" | "pendiente", question: string) => {
     if (question && !window.confirm(question)) return;
     action.run(
@@ -225,8 +240,36 @@ function Customers({ customers }: { customers: Customer[] }) {
           {pending.map((c) => (
             <article key={c.id} className="border border-ink p-4" data-testid="wholesale-pending">
               <CustomerData c={c} />
+              {firstOrderMinUnits > 0 ? (
+                <fieldset className="mt-4">
+                  <legend className="label text-mute">Primera compra</legend>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {[
+                      { value: false, label: "Clienta nueva", hint: `Mínimo ${firstOrderMinUnits} prendas` },
+                      { value: true, label: "Ya es mi clienta", hint: "Sin mínimo" },
+                    ].map((o) => {
+                      const checked = (existing[c.id] ?? false) === o.value;
+                      return (
+                        <label key={o.label} className={`flex cursor-pointer gap-2 border p-2.5 text-[13px] ${checked ? "border-ink" : "border-line"}`}>
+                          <input
+                            type="radio"
+                            name={`existing-${c.id}`}
+                            checked={checked}
+                            onChange={() => setExisting((m) => ({ ...m, [c.id]: o.value }))}
+                            className="mt-0.5 h-4 w-4 shrink-0 appearance-none rounded-full border border-ink checked:border-[5px]"
+                          />
+                          <span>
+                            {o.label}
+                            <span className="block text-[12px] text-mute">{o.hint}</span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
-                <button type="button" className="btn btn-primary" disabled={action.pending} onClick={() => approve(c)} data-testid="wholesale-approve">
+                <button type="button" className="btn btn-primary" disabled={action.pending} onClick={() => approve(c, existing[c.id] ?? false)} data-testid="wholesale-approve">
                   Aprobar
                 </button>
                 <button
@@ -254,13 +297,14 @@ function Customers({ customers }: { customers: Customer[] }) {
             ) : null}
           </div>
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[720px] text-[13px]">
+            <table className="w-full min-w-[880px] text-[13px]">
               <thead>
                 <tr className="label border-b border-line text-left text-mute">
                   <th className="py-2 pr-3 font-normal">Cliente</th>
                   <th className="py-2 pr-3 font-normal">Contacto</th>
                   <th className="py-2 pr-3 font-normal">Localidad</th>
                   <th className="py-2 pr-3 text-right font-normal">Pedidos</th>
+                  <th className="py-2 pr-3 font-normal">Primera compra</th>
                   <th className="py-2 pr-3 font-normal">Último ingreso</th>
                   <th className="py-2 font-normal" />
                 </tr>
@@ -284,6 +328,20 @@ function Customers({ customers }: { customers: Customer[] }) {
                     <td className="py-2 pr-3 text-right tabular-nums">
                       {c.orders}
                       {c.lastOrderAt ? <span className="block text-mute">{formatDate(c.lastOrderAt)}</span> : null}
+                    </td>
+                    <td className="py-2 pr-3">
+                      <select
+                        className="border-b border-line bg-transparent py-1 text-[13px] focus:border-ink focus:outline-none"
+                        value={c.existingCustomer ? "si" : "no"}
+                        disabled={action.pending}
+                        onChange={(e) => changeExisting(c, e.target.value === "si")}
+                        aria-label={`Primera compra de ${c.name}`}
+                        data-testid="wholesale-existing"
+                      >
+                        <option value="no">{firstOrderMinUnits > 0 ? `Clienta nueva (mín. ${firstOrderMinUnits})` : "Clienta nueva"}</option>
+                        <option value="si">Ya es clienta (sin mínimo)</option>
+                      </select>
+                      {!c.existingCustomer && c.orders > 0 && firstOrderMinUnits > 0 ? <span className="block text-[12px] text-mute">Ya hizo su primera compra</span> : null}
                     </td>
                     <td className="py-2 pr-3">{c.lastLoginAt ? formatDate(c.lastLoginAt, true) : <span className="text-mute">Todavía no entró</span>}</td>
                     <td className="py-2 text-right">

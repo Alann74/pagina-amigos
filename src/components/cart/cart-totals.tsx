@@ -70,8 +70,8 @@ export function CartTotals({ subtotal, units = 0, welcomePercent = 0 }: { subtot
         </p>
       ) : null}
       {minUnits > 0 && units < minUnits ? (
-        <p className="pt-1 text-[12px]">
-          Mínimo {minUnits} prendas por pedido (llevás {units})
+        <p className="pt-1 text-[12px]" data-testid="wholesale-min-units">
+          {session?.firstOrder ? `Primera compra: mínimo ${minUnits} prendas (llevás ${units})` : `Mínimo ${minUnits} prendas por pedido (llevás ${units})`}
         </p>
       ) : null}
     </dl>

@@ -36,6 +36,13 @@
       "when": 1791777756955,
       "tag": "0004_clientes_mayoristas",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791778893187,
+      "tag": "0005_primera_compra_mayorista",
+      "breakpoints": true
     }
   ]
 }

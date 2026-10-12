@@ -52,6 +52,7 @@ test("mayorista: se registra, el admin lo aprueba y entra con su código persona
   if ((await toggle.getAttribute("aria-checked")) !== "true") await toggle.click();
   await page.locator("#ws-min").fill("");
   await page.locator("#ws-units").fill("0");
+  await page.locator("#ws-first-units").fill("25");
   await page.getByTestId("wholesale-save").click();
   await expect(page.getByText("Acceso mayorista activo").last()).toBeVisible();
 
@@ -78,6 +79,7 @@ test("mayorista: se registra, el admin lo aprueba y entra con su código persona
   await shop.getByTestId("ws-email").fill(`e2e-mayor-${stamp}@inedita.test`);
   await shop.getByTestId("wholesale-signup-send").click();
   await expect(shop.getByTestId("wholesale-signup-done")).toContainText("Recibimos tus datos");
+  await expect(shop.getByTestId("wholesale-first-min")).toHaveText("Para clientas nuevas, la primera compra por mayor es de mínimo 25 prendas.");
   // Sin aprobar todavía no hay código que sirva
   await shop.goto("/mayoristas");
   await shop.getByTestId("wholesale-tab-codigo").click();
@@ -96,6 +98,9 @@ test("mayorista: se registra, el admin lo aprueba y entra con su código persona
   expect(code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
   const send = page.getByTestId("wholesale-send-code").first();
   await expect(send).toHaveAttribute("href", new RegExp(`^https://wa\\.me/549341${String(stamp).slice(-7)}\\?text=.*mayoristas%3Fcodigo%3D${code}`));
+  // Clienta nueva (lo que viene marcado): el WhatsApp le avisa el mínimo de la primera compra
+  const approvalText = new URL((await send.getAttribute("href"))!).searchParams.get("text") ?? "";
+  expect(approvalText).toContain("Tu primera compra tiene un mínimo de 25 prendas.");
   await expect(page.getByTestId("wholesale-customer-row").filter({ hasText: name })).toBeVisible();
 
   // El link del WhatsApp entra directo a la tienda de siempre, con los precios por mayor
@@ -109,10 +114,25 @@ test("mayorista: se registra, el admin lo aprueba y entra con su código persona
   await shop.goto("/mayoristas");
   await expect(shop.getByTestId("wholesale-active")).toContainText("Hola E2E!");
 
-  // Su pedido queda a nombre del cliente mayorista en el panel
+  // Primera compra de una clienta nueva: con 1 prenda no se puede (mínimo 25)
   await ctx.route(/https:\/\/(wa\.me|api\.whatsapp\.com)\/.*/, (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<html><body>WhatsApp</body></html>" }));
   await addFirstAvailableProduct(shop);
   await shop.goto("/carrito");
+  await expect(shop.getByTestId("wholesale-min-units").first()).toHaveText("Primera compra: mínimo 25 prendas (llevás 1)");
+  await shop.getByLabel("Nombre").fill(`Pedido ${name}`);
+  await shop.getByLabel("Teléfono / WhatsApp").fill("341 555-0000");
+  await shop.getByText(/^Retiro en/).click();
+  await shop.getByText("Transferencia", { exact: true }).click();
+  await shop.getByTestId("send-order").click();
+  await expect(shop.getByRole("alert").filter({ hasText: "Tu primera compra por mayor tiene un mínimo de 25 prendas (llevás 1)." })).toBeVisible();
+
+  // El admin la marca como clienta de antes: sin mínimo, y su pedido queda a su nombre en el panel
+  await page.goto("/admin/mayoristas");
+  await page.getByTestId("wholesale-customer-row").filter({ hasText: name }).getByTestId("wholesale-existing").selectOption("si");
+  await expect(page.getByText(`${name}: ya es clienta, sin mínimo en la primera compra`)).toBeVisible();
+  await shop.reload();
+  await expect(shop.getByTestId("cart-line")).toHaveCount(1);
+  await expect(shop.getByTestId("wholesale-min-units")).toHaveCount(0);
   await shop.getByLabel("Nombre").fill(`Pedido ${name}`);
   await shop.getByLabel("Teléfono / WhatsApp").fill("341 555-0000");
   await shop.getByText(/^Retiro en/).click();

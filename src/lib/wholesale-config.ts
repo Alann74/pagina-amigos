@@ -9,7 +9,8 @@ export const WHOLESALE_FLAG = "inedita_my";
 export type WholesaleSettings = {
   enabled: boolean;
   minAmount: number; // compra mínima en pesos (0 = sin mínimo)
-  minUnits: number; // compra mínima en prendas (0 = sin mínimo)
+  minUnits: number; // compra mínima en prendas, en cada pedido (0 = sin mínimo)
+  firstOrderMinUnits: number; // mínimo de prendas de la primera compra de cada mayorista nuevo (0 = sin mínimo)
   cashDiscountPercent: number; // descuento extra en efectivo/transferencia para mayoristas (0 = ninguno)
   note: string; // texto que ven al entrar y en la bolsa
 };
@@ -18,6 +19,7 @@ export const DEFAULT_WHOLESALE: WholesaleSettings = {
   enabled: false,
   minAmount: 0,
   minUnits: 0,
+  firstOrderMinUnits: 25,
   cashDiscountPercent: 0,
   note: "Precios por mayor. Confirmamos stock, pago y envío por WhatsApp.",
 };
@@ -27,7 +29,8 @@ export type WholesaleSession = {
   customer: { name: string; business: string | null };
   prices: Record<number, number>;
   minAmount: number;
-  minUnits: number;
+  minUnits: number; // el que le corresponde a este pedido (en la primera compra, el de primera compra)
+  firstOrder: boolean; // true si rige el mínimo de primera compra
   cashDiscountPercent: number;
   note: string;
 };
