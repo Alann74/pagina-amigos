@@ -75,6 +75,11 @@ export async function Footer() {
                 Contacto
               </Link>
             </li>
+            <li>
+              <Link href="/mayoristas" className="link-underline" data-testid="footer-wholesale">
+                Mayoristas
+              </Link>
+            </li>
           </ul>
         </nav>
         <div className="space-y-4">

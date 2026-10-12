@@ -61,6 +61,11 @@ export function MenuDrawer({ categories, whatsappHref, instagram }: { categories
               Contacto
             </Link>
           </li>
+          <li>
+            <Link href="/mayoristas" onClick={close} className="nav-link">
+              Mayoristas
+            </Link>
+          </li>
         </ul>
         <div className="mt-8 flex gap-3">
           <a href={whatsappHref} target="_blank" rel="noopener" className="btn btn-secondary flex-1" aria-label="Escribinos por WhatsApp">
