@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createWholesaleToken, hashCode, newPersonalCode, normalizeCode, wholesaleFromCookie } from "../../src/lib/wholesale";
+import { createGuestToken, createWholesaleToken, hashCode, isSharedCode, newPersonalCode, normalizeCode, sharedCodeFingerprint, wholesaleFromCookie } from "../../src/lib/wholesale";
 import { approvalMessage, approvalNotice, normalizeInstagram, signupFields, wholesaleSignupSchema } from "../../src/lib/wholesale-signup";
 
 process.env.ADMIN_SESSION_SECRET ??= "secreto-de-prueba-para-los-tests-123";
@@ -94,4 +94,20 @@ test("mail al aprobar: el código, el mínimo y el botón para mandarlo por What
   assert.equal(n.fields["Primera compra"], "Mínimo 25 prendas");
   assert.equal(n.fields["Mandarle el código por WhatsApp"], "https://wa.me/5493415551234?text=x");
   assert.equal(approvalNotice({ name: "Ana", business: null, phone: "1", city: "x" }, "A", "w", 0, "s").fields["Primera compra"], "Sin mínimo");
+});
+
+test("código general: se escribe como sea; el token cambia si se cambia el código y no se puede alterar", async () => {
+  assert.equal(isSharedCode(" mayoristas inedita ", "mayoristasInedita"), true);
+  assert.equal(isSharedCode("MAYORISTAS-INEDITA", "mayoristasInedita"), true);
+  assert.equal(isSharedCode("otro", "mayoristasInedita"), false);
+  assert.equal(isSharedCode("", ""), false);
+  assert.notEqual(sharedCodeFingerprint("mayoristasInedita"), sharedCodeFingerprint("otroCodigo"));
+  const [exp, id, fp, sig] = createGuestToken(0, "mayoristasInedita").split(".");
+  assert.equal(id, "g0");
+  assert.equal(fp, sharedCodeFingerprint("mayoristasInedita"));
+  assert.equal(createGuestToken(12, "mayoristasInedita").split(".")[1], "g12");
+  // Alterado (pasar de invitado a un cliente, o a otro código): no entra, sin tocar la base
+  assert.equal(await wholesaleFromCookie(`${exp}.g5.${fp}.${sig}`), null);
+  assert.equal(await wholesaleFromCookie(`${exp}.0.${fp}.${sig}`), null);
+  assert.equal(await wholesaleFromCookie(`${exp}.${id}.${sharedCodeFingerprint("otro")}.${sig}`), null);
 });

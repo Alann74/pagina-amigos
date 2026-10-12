@@ -50,6 +50,10 @@ function AccessSettings({ config, link }: { config: WholesaleSettings; link: str
   const action = useAction();
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
   const share = `Hola! Para comprar por mayor en INEDITA registrate acá con los datos de tu negocio: ${link} · Cuando te aprobamos te llega por WhatsApp tu código para ver los precios.`;
+  // Código general guardado (el del formulario puede estar sin guardar todavía)
+  const savedShared = config.sharedCode;
+  const sharedLink = `${link}?codigo=${encodeURIComponent(savedShared)}`;
+  const sharedMessage = `Hola! Te paso el acceso a los precios por mayor de INEDITA: ${sharedLink} (código: ${savedShared}). Para hacer el pedido te pide tus datos una sola vez.`;
 
   return (
     <Section title="Acceso" aside={<FeedbackText feedback={action.feedback} pending={action.pending} />}>
@@ -58,6 +62,13 @@ function AccessSettings({ config, link }: { config: WholesaleSettings; link: str
           <Toggle checked={form.enabled} onChange={(v) => set("enabled", v)} label="Acceso mayorista activo" />
           <span className="text-[14px]">{form.enabled ? "Activo: se pueden registrar y los aprobados ven los precios por mayor" : "Desactivado: nadie ve los precios por mayor ni se puede registrar"}</span>
         </div>
+        <Field
+          label="Código general (para ver precios sin registrarse)"
+          htmlFor="ws-shared"
+          hint="Lo pasás a quien quieras: con este código ve la tienda con precios por mayor y, para pedir, se registra. Vacío = desactivado. Si lo cambiás, el anterior deja de funcionar."
+        >
+          <input id="ws-shared" className="field" value={form.sharedCode} onChange={(e) => set("sharedCode", e.target.value.replace(/\s+/g, ""))} maxLength={40} autoComplete="off" />
+        </Field>
         <Field label="Descuento extra efectivo/transferencia (%)" htmlFor="ws-cash" hint="0 = los precios por mayor ya son finales.">
           <input id="ws-cash" className="field" inputMode="numeric" value={form.cashDiscountPercent} onChange={(e) => set("cashDiscountPercent", Number(e.target.value.replace(/\D/g, "")) || 0)} />
         </Field>
@@ -91,6 +102,7 @@ function AccessSettings({ config, link }: { config: WholesaleSettings; link: str
               minAmount: parseMoney(form.minAmountText) ?? 0,
               minUnits: form.minUnits,
               firstOrderMinUnits: form.firstOrderMinUnits,
+              sharedCode: form.sharedCode,
               cashDiscountPercent: form.cashDiscountPercent,
               note: form.note,
             }),
@@ -100,6 +112,20 @@ function AccessSettings({ config, link }: { config: WholesaleSettings; link: str
       >
         Guardar
       </button>
+      {savedShared ? (
+        <div className="mt-8 max-w-3xl border border-ink p-4 sm:p-5" data-testid="wholesale-shared">
+          <p className="label text-mute">Código general</p>
+          <p className="mt-2 font-mono text-[18px] tracking-[0.08em]">{savedShared}</p>
+          <p className="mt-1 break-all text-[13px] text-mute">Link que entra directo: {sharedLink}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <CopyButton text={savedShared} label="Copiar código" />
+            <CopyButton text={sharedMessage} label="Copiar mensaje" />
+            <a href={`https://wa.me/?text=${encodeURIComponent(sharedMessage)}`} target="_blank" rel="noopener" className="btn btn-secondary gap-2">
+              <WhatsAppIcon size={16} /> Mandar por WhatsApp
+            </a>
+          </div>
+        </div>
+      ) : null}
       <div className="mt-8 max-w-3xl border border-line p-4 sm:p-5">
         <p className="label text-mute">Link para registrarse</p>
         <p className="mt-2 break-all text-[15px]">{link}</p>
@@ -449,6 +475,14 @@ function CustomerData({ c }: { c: Customer }) {
           <>
             <dt className="text-mute">Comentario</dt>
             <dd className="whitespace-pre-line">{c.comment}</dd>
+          </>
+        ) : null}
+        {c.status === "pendiente" && c.orders > 0 ? (
+          <>
+            <dt className="text-mute">Pedidos</dt>
+            <dd>
+              {c.orders} con el código general{c.lastOrderAt ? ` (último ${formatDate(c.lastOrderAt)})` : ""}
+            </dd>
           </>
         ) : null}
       </dl>

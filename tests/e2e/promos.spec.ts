@@ -156,3 +156,84 @@ test("mayorista: se registra, el admin lo aprueba y entra con su código persona
   await expect(shop.getByText("Modo mayorista · precios por mayor")).toBeHidden();
   await ctx.close();
 });
+
+test("código general: ve los precios por mayor sin registrarse y, para pedir, se registra", async ({ page, browser }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Se prueba en escritorio");
+  const password = adminPassword();
+  test.skip(!password, "Falta ADMIN_PASSWORD");
+  const stamp = Date.now();
+  const name = `E2E General ${stamp}`;
+
+  // Admin: código general y sin mínimo de primera compra (para poder pedir 1 prenda)
+  await page.goto("/admin/mayoristas");
+  await page.getByTestId("admin-password").fill(password!);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.waitForURL("**/admin/mayoristas");
+  const toggle = page.getByRole("switch", { name: "Acceso mayorista activo" });
+  if ((await toggle.getAttribute("aria-checked")) !== "true") await toggle.click();
+  await page.locator("#ws-shared").fill("E2EGeneral");
+  await page.locator("#ws-first-units").fill("0");
+  await page.locator("#ws-units").fill("0");
+  await page.locator("#ws-min").fill("");
+  await page.getByTestId("wholesale-save").click();
+  await expect(page.getByText("Acceso mayorista activo").last()).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("wholesale-shared")).toContainText("E2EGeneral");
+
+  const ctx = await browser.newContext();
+  const shop = await ctx.newPage();
+  await ctx.route(/https:\/\/(wa\.me|api\.whatsapp\.com)\/.*/, (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<html><body>WhatsApp</body></html>" }));
+  await shop.goto("/productos");
+  const firstCard = shop.getByTestId("product-card").first();
+  const retailText = (await firstCard.locator("[data-price]").first().textContent())?.trim() ?? "";
+
+  // Con el link del código general entra sin registrarse y ve los precios por mayor
+  await shop.goto("/mayoristas?codigo=e2e-general");
+  await shop.waitForURL((u) => u.pathname === "/");
+  await expect(shop.getByText("Modo mayorista · precios por mayor")).toBeVisible();
+  await shop.goto("/productos");
+  await expect(firstCard.locator("[data-price]").first()).not.toHaveText(retailText);
+
+  // Para pedir, la bolsa le pide registrarse
+  await addFirstAvailableProduct(shop);
+  await shop.goto("/carrito");
+  await expect(shop.getByTestId("wholesale-order-signup")).toBeVisible();
+  await expect(shop.getByTestId("checkout-form")).toHaveCount(0);
+  await shop.getByTestId("ws-name").fill(name);
+  await shop.getByTestId("ws-business").fill("Local general");
+  await shop.getByTestId("ws-phone").fill(`341 ${String(stamp).slice(-7)}`);
+  await shop.getByTestId("ws-email").fill(`e2e-general-${stamp}@inedita.test`);
+  await shop.getByTestId("ws-city").fill("Rosario, Santa Fe");
+  await shop.getByTestId("wholesale-signup-send").click();
+
+  // Ya registrado: la bolsa muestra el pedido con su nombre y WhatsApp completos
+  await expect(shop.getByTestId("checkout-form")).toBeVisible();
+  await expect(shop.getByLabel("Nombre")).toHaveValue(name);
+  await shop.getByText(/^Retiro en/).click();
+  await shop.getByText("Transferencia", { exact: true }).click();
+  const waPage = ctx.waitForEvent("page");
+  await shop.getByTestId("send-order").click();
+  await (await waPage).close();
+  await expect(shop).toHaveURL(/\/pedido\//);
+
+  // En el panel: queda pendiente de aprobación, con su pedido
+  await page.goto("/admin/mayoristas");
+  const card = page.getByTestId("wholesale-pending").filter({ hasText: name });
+  await expect(card).toContainText("Local general");
+  await expect(card).toContainText("1 con el código general");
+  await page.goto("/admin/pedidos");
+  await page.getByTestId("orders-list").getByRole("link", { name: new RegExp(name) }).click();
+  await expect(page.getByText("Pedido mayorista (precios por mayor)")).toBeVisible();
+  await expect(page.getByRole("link", { name: `${name} · Local general` })).toBeVisible();
+
+  // Si se cambia el código general, el acceso anterior deja de valer
+  await page.goto("/admin/mayoristas");
+  await page.locator("#ws-shared").fill("E2EOtroCodigo");
+  await page.locator("#ws-first-units").fill("25");
+  await page.getByTestId("wholesale-save").click();
+  await expect(page.getByText("Acceso mayorista activo").last()).toBeVisible();
+  await shop.goto("/");
+  await shop.reload();
+  await expect(shop.getByText("Modo mayorista · precios por mayor")).toBeHidden();
+  await ctx.close();
+});

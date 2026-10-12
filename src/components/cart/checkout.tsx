@@ -9,9 +9,11 @@ import { CompleteLook } from "@/components/cart/complete-look";
 import { WhatsAppIcon } from "@/components/icons";
 import { useShopConfig } from "@/components/shop-config";
 import { useCartPricing, useWholesale } from "@/components/wholesale";
+import { SignupForm } from "@/components/wholesale-login";
 import { trackWhatsappOrder } from "@/lib/analytics";
 import { readAttribution } from "@/lib/attribution";
 import { sendBrowserNotice } from "@/lib/browser-notice";
+import { CHECKOUT_FORM_KEY } from "@/lib/checkout-form";
 import { cashPrice } from "@/lib/format";
 import { useHydrated } from "@/lib/use-hydrated";
 import { cartCount, useCart } from "@/stores/cart";
@@ -27,7 +29,7 @@ type Form = {
   comment: string;
 };
 
-const FORM_KEY = "inedita-checkout";
+const FORM_KEY = CHECKOUT_FORM_KEY;
 
 function isMobileDevice() {
   return /Android|iPhone|iPad|iPod|Mobile|Instagram|FBAN|FBAV/i.test(navigator.userAgent);
@@ -258,6 +260,18 @@ export function Checkout() {
         <p className="mt-2 text-[13px] text-mute">
           {wholesale.active ? (wholesale.session?.note ?? "Pedido mayorista.") : "Te llega el pedido armado a nuestro WhatsApp y coordinamos pago y entrega."}
         </p>
+        {wholesale.session?.guest && !wholesale.session.customer ? (
+          // Entró con el código general: para pedir por mayor se registra (una sola vez)
+          <div className="mt-6 space-y-6" data-testid="wholesale-order-signup">
+            <p className="border border-ink p-4 text-[14px] leading-relaxed">
+              Para armar tu pedido por mayor, registrate con los datos de tu negocio. Es una sola vez: después mandás el pedido por WhatsApp.
+            </p>
+            <div className="hidden lg:block">
+              <CartTotals subtotal={subtotal} units={units} welcomePercent={welcomePercent} />
+            </div>
+            <SignupForm whatsappNumber={whatsappNumber} onHasCode={() => router.push("/mayoristas")} forOrder />
+          </div>
+        ) : (
         <form className="mt-6 space-y-6" onSubmit={submit} noValidate data-testid="checkout-form">
           <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
           <div>
@@ -423,6 +437,7 @@ export function Checkout() {
             Al enviar, tu pedido queda registrado y se abre WhatsApp con el detalle. La compra se confirma cuando te respondemos.
           </p>
         </form>
+        )}
       </section>
     </div>
   );

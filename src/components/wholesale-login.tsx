@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { WhatsAppIcon } from "@/components/icons";
 import { useWholesale } from "@/components/wholesale";
 import { sendBrowserNotice } from "@/lib/browser-notice";
+import { CHECKOUT_FORM_KEY } from "@/lib/checkout-form";
 import { SALES_CHANNELS } from "@/lib/wholesale-config";
 import { whatsappUrl } from "@/lib/whatsapp";
 
@@ -24,7 +25,8 @@ export function WholesaleLogin({ whatsappNumber }: { whatsappNumber: string }) {
     return (
       <div className="mt-8 space-y-3" data-testid="wholesale-active">
         <p className="border border-ink p-4 text-[14px]">
-          {session?.customer.name ? `Hola ${session.customer.name.split(/\s+/)[0]}! ` : ""}Ya estás navegando con precios por mayor.
+          {session?.customer?.name ? `Hola ${session.customer.name.split(/\s+/)[0]}! ` : ""}Ya estás navegando con precios por mayor.
+          {session?.guest && !session.customer ? " Para hacer un pedido te vamos a pedir tus datos." : ""}
         </p>
         <Link href="/" className="btn btn-primary w-full">
           Ver la tienda
@@ -176,7 +178,11 @@ const FIELDS: { key: keyof SignupData; label: string; required?: boolean; type?:
   { key: "instagram", label: "Instagram", placeholder: "@tu.negocio" },
 ];
 
-function SignupForm({ whatsappNumber, onHasCode }: { whatsappNumber: string; onHasCode: () => void }) {
+/**
+ * Registro mayorista. `forOrder`: se muestra en la bolsa a quien entró con el código general; con el
+ * registro ya puede mandar el pedido (se recarga la bolsa con su nombre y WhatsApp completos).
+ */
+export function SignupForm({ whatsappNumber, onHasCode, forOrder = false }: { whatsappNumber: string; onHasCode: () => void; forOrder?: boolean }) {
   const [form, setForm] = useState<SignupData>(EMPTY);
   const [website, setWebsite] = useState("");
   const [error, setError] = useState<{ message: string; field?: string } | null>(null);
@@ -214,6 +220,14 @@ function SignupForm({ whatsappNumber, onHasCode }: { whatsappNumber: string; onH
         return;
       }
       sendBrowserNotice(data.notice);
+      if (forOrder && data.canOrder) {
+        try {
+          const saved = JSON.parse(localStorage.getItem(CHECKOUT_FORM_KEY) ?? "{}");
+          localStorage.setItem(CHECKOUT_FORM_KEY, JSON.stringify({ ...saved, customerName: form.name.trim(), customerPhone: form.phone.trim() }));
+        } catch {}
+        window.location.reload();
+        return;
+      }
       setDone(data.status ?? "recibido");
       setFirstOrderMin(Number(data.firstOrderMinUnits) || 0);
     } catch {
@@ -263,7 +277,9 @@ function SignupForm({ whatsappNumber, onHasCode }: { whatsappNumber: string; onH
 
   return (
     <form onSubmit={submit} className="mt-6 space-y-5" noValidate data-testid="wholesale-signup">
-      <p className="text-[13px] leading-relaxed text-mute">Dejanos tus datos: revisamos cada solicitud y te mandamos por WhatsApp tu código personal para entrar.</p>
+      {forOrder ? null : (
+        <p className="text-[13px] leading-relaxed text-mute">Dejanos tus datos: revisamos cada solicitud y te mandamos por WhatsApp tu código personal para entrar.</p>
+      )}
       <input type="text" name="website" value={website} onChange={(e) => setWebsite(e.target.value)} tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
       <div className="grid gap-5 sm:grid-cols-2">
         {FIELDS.map((f) => (
@@ -335,7 +351,7 @@ function SignupForm({ whatsappNumber, onHasCode }: { whatsappNumber: string; onH
         </p>
       ) : null}
       <button type="submit" className="btn btn-primary w-full" disabled={sending} data-testid="wholesale-signup-send">
-        {sending ? "Enviando…" : "Enviar solicitud"}
+        {sending ? "Enviando…" : forOrder ? "Registrarme y seguir con el pedido" : "Enviar solicitud"}
       </button>
     </form>
   );

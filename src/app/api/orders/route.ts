@@ -27,8 +27,12 @@ export async function POST(request: Request) {
   }
   try {
     const [settings, access] = await Promise.all([getSettings(), wholesaleFromCookie((await cookies()).get(WHOLESALE_COOKIE)?.value)]);
+    // Con el código general se ven los precios; para pedir por mayor hay que registrarse
+    if (access?.guest && !access.customer) {
+      return Response.json({ error: "Para hacer el pedido por mayor, registrate con tus datos.", code: "registro" }, { status: 403 });
+    }
     const rules = access ? await orderRules(access) : null;
-    const order = await createOrder(parsed.data, settings, request.headers.get("user-agent"), rules, access?.customer.id ?? null);
+    const order = await createOrder(parsed.data, settings, request.headers.get("user-agent"), rules, access?.customer?.id ?? null);
     revalidateTag(TAGS.bestsellers, "max");
     // Aviso por mail a INEDITA: por Resend sale del servidor después de responder; por FormSubmit lo
     // manda el navegador de la clienta (va en la respuesta como "notice")

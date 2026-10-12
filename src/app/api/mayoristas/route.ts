@@ -3,19 +3,24 @@ import { cookies } from "next/headers";
 import { db } from "@/db";
 import { wholesaleCustomers } from "@/db/schema";
 import { clientIp, isBlocked, recordFailure } from "@/lib/rate-limit";
-import { createWholesaleToken, customerByCode, getWholesaleSession, getWholesaleSettings, wholesaleFromCookie, WHOLESALE_MAX_AGE } from "@/lib/wholesale";
-import { WHOLESALE_COOKIE, WHOLESALE_FLAG } from "@/lib/wholesale-config";
+import {
+  createGuestToken,
+  createWholesaleToken,
+  customerByCode,
+  getWholesaleSession,
+  getWholesaleSettings,
+  isSharedCode,
+  clearWholesaleCookies,
+  setWholesaleCookies,
+  wholesaleFromCookie,
+} from "@/lib/wholesale";
+import { WHOLESALE_COOKIE } from "@/lib/wholesale-config";
 
 const PRIVATE = { "Cache-Control": "private, no-store" };
-const secure = process.env.NODE_ENV === "production";
+const clearCookies = clearWholesaleCookies;
 
-async function clearCookies() {
-  const store = await cookies();
-  store.delete(WHOLESALE_COOKIE);
-  store.delete(WHOLESALE_FLAG);
-}
-
-// POST /api/mayoristas { code } → entra al modo mayorista con su código personal (lo manda INEDITA al aprobarlo)
+// POST /api/mayoristas { code } → entra al modo mayorista con su código personal (lo manda INEDITA al
+// aprobarlo) o con el código general (ve los precios; para pedir se registra)
 export async function POST(request: Request) {
   const key = `mayorista:${clientIp(request.headers)}`;
   if (isBlocked(key, 10, 15 * 60 * 1000)) return Response.json({ error: "Demasiados intentos. Esperá 15 minutos o escribinos por WhatsApp." }, { status: 429 });
@@ -24,16 +29,17 @@ export async function POST(request: Request) {
   const config = await getWholesaleSettings();
   if (!config.enabled) return Response.json({ error: "El acceso mayorista no está habilitado en este momento." }, { status: 403 });
   const customer = code ? await customerByCode(code) : null;
-  if (!customer?.codeHash) {
-    recordFailure(key);
-    return Response.json({ error: "Código incorrecto" }, { status: 401 });
+  if (customer?.codeHash) {
+    await db.update(wholesaleCustomers).set({ lastLoginAt: new Date() }).where(eq(wholesaleCustomers.id, customer.id));
+    await setWholesaleCookies(createWholesaleToken(customer.id, customer.codeHash));
+    return Response.json({ ok: true, name: customer.name }, { headers: PRIVATE });
   }
-  await db.update(wholesaleCustomers).set({ lastLoginAt: new Date() }).where(eq(wholesaleCustomers.id, customer.id));
-  const store = await cookies();
-  const options = { secure, sameSite: "lax" as const, path: "/", maxAge: WHOLESALE_MAX_AGE };
-  store.set(WHOLESALE_COOKIE, createWholesaleToken(customer.id, customer.codeHash), { ...options, httpOnly: true });
-  store.set(WHOLESALE_FLAG, "1", { ...options, httpOnly: false });
-  return Response.json({ ok: true, name: customer.name }, { headers: PRIVATE });
+  if (isSharedCode(code, config.sharedCode)) {
+    await setWholesaleCookies(createGuestToken(0, config.sharedCode));
+    return Response.json({ ok: true, guest: true }, { headers: PRIVATE });
+  }
+  recordFailure(key);
+  return Response.json({ error: "Código incorrecto" }, { status: 401 });
 }
 
 // GET /api/mayoristas → precios por mayor (solo con acceso válido)

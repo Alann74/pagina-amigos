@@ -540,6 +540,12 @@ const wholesaleSchema = z.object({
   minAmount: z.number().int().min(0).max(100_000_000),
   minUnits: z.number().int().min(0).max(10_000),
   firstOrderMinUnits: z.number().int().min(0).max(10_000),
+  sharedCode: z
+    .string()
+    .trim()
+    .max(40, "El código general puede tener hasta 40 caracteres")
+    .transform((v) => v.replace(/\s+/g, ""))
+    .refine((v) => v === "" || v.length >= 6, "El código general tiene que tener al menos 6 caracteres (o dejalo vacío)"),
   cashDiscountPercent: z.number().int().min(0).max(90),
   note: z.string().trim().max(400),
 });
