@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { revalidateTag } from "next/cache";
 import { after } from "next/server";
 import { getSettings, TAGS } from "@/lib/catalog";
-import { emailChannel, orderBrowserNotice, sendOrderEmail, type OrderEmailInput } from "@/lib/order-email";
+import { emailChannels, orderBrowserNotice, sendOrderEmail, type OrderEmailInput } from "@/lib/order-email";
 import { createOrder, OrderError, orderInputSchema } from "@/lib/orders";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { SITE_URL } from "@/lib/site";
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     const rules = access ? await orderRules(access) : null;
     const order = await createOrder(parsed.data, settings, request.headers.get("user-agent"), rules, access?.customer.id ?? null);
     revalidateTag(TAGS.bestsellers, "max");
-    // Aviso por mail a INEDITA: con Resend sale del servidor después de responder; con FormSubmit lo
+    // Aviso por mail a INEDITA: por Resend sale del servidor después de responder; por FormSubmit lo
     // manda el navegador de la clienta (va en la respuesta como "notice")
     const email: OrderEmailInput = {
       id: order.id,
@@ -41,9 +41,9 @@ export async function POST(request: Request) {
       total: parsed.data.paymentMethod === "tarjeta" ? order.subtotal : order.cashTotal,
       wholesale: Boolean(access),
     };
-    const channel = await emailChannel();
-    if (channel.kind === "resend") after(() => sendOrderEmail(email));
-    return Response.json({ ...order, notice: orderBrowserNotice(channel, email, SITE_URL) }, { status: 201 });
+    const channels = await emailChannels();
+    if (channels.resend) after(() => sendOrderEmail(email));
+    return Response.json({ ...order, notice: orderBrowserNotice(channels, email, SITE_URL) }, { status: 201 });
   } catch (error) {
     if (error instanceof OrderError) {
       return Response.json({ error: error.message, details: error.details }, { status: error.status });

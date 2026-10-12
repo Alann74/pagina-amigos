@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { wholesaleCustomers } from "@/db/schema";
 import { formSubmitNotice, type BrowserNotice } from "@/lib/browser-notice";
-import { emailChannel, sendNotice } from "@/lib/order-email";
+import { emailChannels, sendNotice } from "@/lib/order-email";
 import { SITE_URL } from "@/lib/site";
 import { SALES_CHANNELS } from "@/lib/wholesale-config";
 import { toWhatsappNumber, whatsappUrl } from "@/lib/whatsapp";
@@ -109,11 +109,11 @@ export function approvalMessage(name: string, code: string, siteUrl: string, fir
 const signupSubject = (c: WholesaleSignup) => `Nueva solicitud mayorista · ${c.business ? `${c.name} (${c.business})` : c.name} · ${c.city}`;
 
 /**
- * Aviso a INEDITA de una solicitud nueva. Con Resend lo manda el servidor (después de responder); con
+ * Aviso a INEDITA de una solicitud nueva: por Resend lo manda el servidor (después de responder); por
  * FormSubmit devuelve el aviso para que lo mande el navegador. Nunca tira error.
  */
 export async function wholesaleSignupNotice(c: WholesaleSignup, later: (task: () => Promise<unknown>) => void): Promise<BrowserNotice | null> {
-  const channel = await emailChannel();
-  if (channel.kind === "resend") later(() => sendNotice(signupSubject(c), signupFields(c, SITE_URL)));
-  return channel.kind === "browser" ? formSubmitNotice(channel.to, signupSubject(c), signupFields(c, SITE_URL)) : null;
+  const channels = await emailChannels();
+  if (channels.resend) later(() => sendNotice(signupSubject(c), signupFields(c, SITE_URL)));
+  return channels.browser ? formSubmitNotice(channels.browser.to, signupSubject(c), signupFields(c, SITE_URL)) : null;
 }

@@ -6,12 +6,16 @@ import { SITE_URL } from "@/lib/site";
 import { formSubmitNotice, type BrowserNotice } from "@/lib/browser-notice";
 import { toWhatsappNumber, whatsappUrl } from "@/lib/whatsapp";
 
-// Cada pedido web (y cada registro mayorista) llega también por mail a INEDITA.
-// Por defecto va por FormSubmit (formsubmit.co, gratis y sin cuenta) y lo manda el navegador de la
-// clienta: FormSubmit rechaza los envíos desde los servidores de Vercel (ver browser-notice.ts). La
-// primera vez llega a la casilla un mail "Activate Form" que hay que tocar una sola vez. Si se carga una
-// clave de Resend (RESEND_API_KEY o settings "email-pedidos": { apiKey }), lo manda el servidor por
-// Resend. Con { activo: false } en settings "email-pedidos" no se manda nada.
+// Cada pedido web (y cada registro mayorista) llega también por mail a INEDITA, por dos vías:
+// - FormSubmit (formsubmit.co, gratis y sin cuenta) a la casilla de INEDITA (ORDERS_EMAIL o settings
+//   "email-pedidos".to). Lo manda el navegador de la clienta: FormSubmit rechaza los envíos desde los
+//   servidores de Vercel (ver browser-notice.ts).
+// - Resend, desde el servidor, si hay clave (RESEND_API_KEY o settings "email-pedidos".apiKey). Mismas
+//   variables que el sistema mayorista: MAIL_PEDIDOS (destinatarios, separados por coma) y MAIL_REMITENTE.
+//   Con el remitente de prueba de Resend (onboarding@resend.dev) solo se puede mandar al mail de la
+//   cuenta de Resend; para otros destinos hay que verificar un dominio propio en Resend.
+// Si Resend ya le manda a la casilla de INEDITA, FormSubmit no repite. Con { activo: false } en
+// settings "email-pedidos" no se manda nada.
 
 const DEFAULT_TO = "ineditarosario@gmail.com";
 const DEFAULT_FROM = "INEDITA Pedidos <onboarding@resend.dev>";
@@ -63,7 +67,7 @@ export function orderFields(o: OrderEmailInput, siteUrl: string): Record<string,
   return fields;
 }
 
-type SavedConfig = { apiKey?: string; to?: string; from?: string; activo?: boolean };
+type SavedConfig = { apiKey?: string; to?: string; from?: string; resendTo?: string; activo?: boolean };
 
 async function savedConfig(): Promise<SavedConfig> {
   try {
@@ -74,21 +78,37 @@ async function savedConfig(): Promise<SavedConfig> {
   }
 }
 
-export type EmailChannel = { kind: "off" } | { kind: "resend"; apiKey: string; from: string; to: string } | { kind: "browser"; to: string };
+export type EmailChannels = {
+  resend: { apiKey: string; from: string; to: string[] } | null; // desde el servidor
+  browser: { to: string } | null; // FormSubmit, desde el navegador
+};
 
-/** Por dónde salen los avisos: apagados, Resend (desde el servidor) o FormSubmit (desde el navegador). */
-export async function emailChannel(): Promise<EmailChannel> {
+const emailList = (v: string | undefined) =>
+  (v ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+/** Por dónde salen los avisos (ver arriba). */
+export async function emailChannels(): Promise<EmailChannels> {
   const saved = await savedConfig();
-  if (saved.activo === false) return { kind: "off" };
-  const to = process.env.ORDERS_EMAIL?.trim() || saved.to?.trim() || DEFAULT_TO;
+  if (saved.activo === false) return { resend: null, browser: null };
+  const inbox = process.env.ORDERS_EMAIL?.trim() || saved.to?.trim() || DEFAULT_TO;
   const apiKey = process.env.RESEND_API_KEY?.trim() || saved.apiKey?.trim();
-  if (!apiKey) return { kind: "browser", to };
-  return { kind: "resend", apiKey, to, from: process.env.ORDERS_EMAIL_FROM?.trim() || saved.from?.trim() || DEFAULT_FROM };
+  const resendTo = emailList(process.env.MAIL_PEDIDOS || saved.resendTo);
+  const resend = apiKey
+    ? {
+        apiKey,
+        from: process.env.MAIL_REMITENTE?.trim() || process.env.ORDERS_EMAIL_FROM?.trim() || saved.from?.trim() || DEFAULT_FROM,
+        to: resendTo.length ? resendTo : [inbox],
+      }
+    : null;
+  return { resend, browser: resend?.to.includes(inbox) ? null : { to: inbox } };
 }
 
-/** El aviso del pedido para que lo mande el navegador (solo si el canal es FormSubmit). */
-export function orderBrowserNotice(channel: EmailChannel, o: OrderEmailInput, siteUrl: string): BrowserNotice | null {
-  return channel.kind === "browser" ? formSubmitNotice(channel.to, buildOrderEmail(o, siteUrl).subject, orderFields(o, siteUrl)) : null;
+/** El aviso del pedido para que lo mande el navegador (si va por FormSubmit). */
+export function orderBrowserNotice(channels: EmailChannels, o: OrderEmailInput, siteUrl: string): BrowserNotice | null {
+  return channels.browser ? formSubmitNotice(channels.browser.to, buildOrderEmail(o, siteUrl).subject, orderFields(o, siteUrl)) : null;
 }
 
 async function recordStatus(value: Record<string, unknown>) {
@@ -100,34 +120,28 @@ async function recordStatus(value: Record<string, unknown>) {
   }
 }
 
-async function sendWithResend(apiKey: string, from: string, to: string, o: OrderEmailInput): Promise<string | null> {
-  const { subject, text, html } = buildOrderEmail(o, SITE_URL);
+type ResendChannel = NonNullable<EmailChannels["resend"]>;
+
+async function sendWithResend(r: ResendChannel, email: { subject: string; text: string; html?: string }): Promise<string | null> {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-    body: JSON.stringify({ from, to: [to], subject, text, html }),
+    headers: { authorization: `Bearer ${r.apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ from: r.from, to: r.to, ...email }),
     signal: AbortSignal.timeout(10_000),
   });
   return res.ok ? null : `Resend ${res.status} ${(await res.text()).slice(0, 300)}`;
 }
 
 /** Otros avisos a INEDITA (ej. solicitud mayorista) por Resend, desde el servidor. Nunca tira error. */
-export async function sendNotice(subject: string, fields: Record<string, string>): Promise<"enviado" | "desactivado" | "navegador" | "error"> {
-  const channel = await emailChannel();
-  if (channel.kind === "off") return "desactivado";
-  if (channel.kind === "browser") return "navegador";
+export async function sendNotice(subject: string, fields: Record<string, string>): Promise<"enviado" | "sin-resend" | "error"> {
+  const { resend } = await emailChannels();
+  if (!resend) return "sin-resend";
+  const text = Object.entries(fields)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n");
   let error: string | null;
   try {
-    const text = Object.entries(fields)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join("\n");
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { authorization: `Bearer ${channel.apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: channel.from, to: [channel.to], subject, text }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    error = res.ok ? null : `Resend ${res.status} ${(await res.text()).slice(0, 300)}`;
+    error = await sendWithResend(resend, { subject, text });
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -135,17 +149,18 @@ export async function sendNotice(subject: string, fields: Record<string, string>
   return error ? "error" : "enviado";
 }
 
-/** Manda el aviso del pedido por Resend (con FormSubmit lo manda el navegador). Nunca tira error: si falla queda anotado en settings "email-pedidos-estado". */
-export async function sendOrderEmail(o: OrderEmailInput): Promise<"enviado" | "desactivado" | "navegador" | "error"> {
-  const channel = await emailChannel();
-  if (channel.kind === "off") return "desactivado";
-  if (channel.kind === "browser") return "navegador";
+/** Manda el aviso del pedido por Resend (lo de FormSubmit lo manda el navegador). Nunca tira error: queda anotado en settings "email-pedidos-estado". */
+export async function sendOrderEmail(o: OrderEmailInput): Promise<"enviado" | "sin-resend" | "error"> {
+  const { resend } = await emailChannels();
+  if (!resend) return "sin-resend";
   let error: string | null;
   try {
-    error = await sendWithResend(channel.apiKey, channel.from, channel.to, o);
+    const { subject, text, html } = buildOrderEmail(o, SITE_URL);
+    error = await sendWithResend(resend, { subject, text, html });
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
+  if (error) console.error("[mail del pedido]", o.label, error);
   await recordStatus(error ? { ultimo: o.label, ok: false, error } : { ultimo: o.label, ok: true });
   return error ? "error" : "enviado";
 }

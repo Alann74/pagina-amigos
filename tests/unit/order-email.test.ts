@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { formSubmitNotice, sendBrowserNotice } from "../../src/lib/browser-notice";
-import { buildOrderEmail, emailChannel, orderBrowserNotice, orderFields, sendOrderEmail, type OrderEmailInput } from "../../src/lib/order-email";
+import { buildOrderEmail, emailChannels, orderBrowserNotice, orderFields, sendOrderEmail, type OrderEmailInput } from "../../src/lib/order-email";
 
 const pedido: OrderEmailInput = {
   id: 42,
@@ -19,6 +19,8 @@ afterEach(() => {
   globalThis.fetch = realFetch;
   delete process.env.RESEND_API_KEY;
   delete process.env.ORDERS_EMAIL;
+  delete process.env.MAIL_PEDIDOS;
+  delete process.env.MAIL_REMITENTE;
 });
 
 test("el mail del pedido: asunto, texto del pedido y links al panel y al WhatsApp de la clienta", () => {
@@ -68,20 +70,39 @@ test("por FormSubmit: lo manda el navegador, con cada prenda y cada dato en su f
     llamadas.push(args);
     return new Response("{}");
   }) as typeof fetch;
-  const channel = await emailChannel();
-  assert.deepEqual(channel, { kind: "browser", to: "ineditarosario@gmail.com" });
-  assert.equal(await sendOrderEmail(pedido), "navegador");
+  const channels = await emailChannels();
+  assert.deepEqual(channels, { resend: null, browser: { to: "ineditarosario@gmail.com" } });
+  assert.equal(await sendOrderEmail(pedido), "sin-resend");
   assert.equal(llamadas.length, 0);
 
   // ...y le pasa al navegador el aviso armado
-  const notice = orderBrowserNotice(channel, pedido, "https://inedita-tienda.vercel.app");
+  const notice = orderBrowserNotice(channels, pedido, "https://inedita-tienda.vercel.app");
   assert.equal(notice?.url, "https://formsubmit.co/ajax/ineditarosario%40gmail.com");
   assert.equal(notice?.subject, "Nuevo pedido web #INE-0042 · Ana Pérez · $40.500");
   assert.equal(notice?.fields["Prenda 1"], "Vestido <Lino> — Talle M — x1 — $45.000");
   process.env.ORDERS_EMAIL = "otra@inedita.test";
-  assert.equal(orderBrowserNotice(await emailChannel(), pedido, "x")?.url, "https://formsubmit.co/ajax/otra%40inedita.test");
-  // Con Resend no hay aviso para el navegador
-  assert.equal(orderBrowserNotice({ kind: "resend", apiKey: "re_x", from: "a", to: "b" }, pedido, "x"), null);
+  assert.equal(orderBrowserNotice(await emailChannels(), pedido, "x")?.url, "https://formsubmit.co/ajax/otra%40inedita.test");
+  // Si Resend ya le manda a esa casilla, el navegador no repite
+  assert.equal(orderBrowserNotice({ resend: { apiKey: "re_x", from: "a", to: ["b"] }, browser: null }, pedido, "x"), null);
+});
+
+test("como el sistema mayorista: Resend a MAIL_PEDIDOS y, aparte, FormSubmit a la casilla de INEDITA", async () => {
+  process.env.RESEND_API_KEY = "re_prueba";
+  process.env.MAIL_PEDIDOS = "duenio@ejemplo.com, otro@ejemplo.com";
+  const channels = await emailChannels();
+  assert.deepEqual(channels.resend?.to, ["duenio@ejemplo.com", "otro@ejemplo.com"]);
+  assert.equal(channels.resend?.from, "INEDITA Pedidos <onboarding@resend.dev>");
+  assert.deepEqual(channels.browser, { to: "ineditarosario@gmail.com" });
+  process.env.MAIL_REMITENTE = "INEDITA <pedidos@inedita.test>";
+  assert.equal((await emailChannels()).resend?.from, "INEDITA <pedidos@inedita.test>");
+
+  const llamadas: { url: string; init: RequestInit }[] = [];
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    llamadas.push({ url, init });
+    return new Response(JSON.stringify({ id: "x" }), { status: 200 });
+  }) as typeof fetch;
+  assert.equal(await sendOrderEmail(pedido), "enviado");
+  assert.deepEqual(JSON.parse(String(llamadas[0].init.body)).to, ["duenio@ejemplo.com", "otro@ejemplo.com"]);
 });
 
 test("el navegador manda el aviso como formulario común, con keepalive, y nunca rompe", async () => {
