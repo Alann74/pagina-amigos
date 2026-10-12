@@ -11,6 +11,7 @@ import { useShopConfig } from "@/components/shop-config";
 import { useCartPricing, useWholesale } from "@/components/wholesale";
 import { trackWhatsappOrder } from "@/lib/analytics";
 import { readAttribution } from "@/lib/attribution";
+import { sendBrowserNotice } from "@/lib/browser-notice";
 import { cashPrice } from "@/lib/format";
 import { useHydrated } from "@/lib/use-hydrated";
 import { cartCount, useCart } from "@/stores/cart";
@@ -215,6 +216,7 @@ export function Checkout() {
       if (data.welcomeApplied) forgetWelcome();
       sessionStorage.setItem(`inedita-order-${data.token}`, JSON.stringify({ message: data.message, whatsappUrl: data.whatsappUrl }));
     } catch {}
+    sendBrowserNotice(data.notice);
     trackWhatsappOrder(data.label, form.paymentMethod === "tarjeta" ? data.subtotal : data.cashTotal, data.items);
     clear();
     if (preOpened) {

@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getWholesaleSettings } from "@/lib/wholesale";
-import { notifyWholesaleSignup, registerWholesaleCustomer, wholesaleSignupSchema } from "@/lib/wholesale-signup";
+import { registerWholesaleCustomer, wholesaleSignupNotice, wholesaleSignupSchema } from "@/lib/wholesale-signup";
 
 const PRIVATE = { "Cache-Control": "private, no-store" };
 
@@ -26,11 +26,11 @@ export async function POST(request: Request) {
 
   try {
     const result = await registerWholesaleCustomer(parsed.data);
-    // Aviso a INEDITA después de responder (si ya estaba pendiente, ya se avisó la primera vez)
-    if (result.status === "recibido") after(() => notifyWholesaleSignup(parsed.data));
+    // Aviso por mail a INEDITA (si ya estaba pendiente, ya se avisó la primera vez)
+    const notice = result.status === "recibido" ? await wholesaleSignupNotice(parsed.data, (task) => after(task)) : null;
     // El mínimo de la primera compra se avisa en la confirmación (a las que ya eran clientas se les saca al aprobarlas)
     return Response.json(
-      { status: result.status, firstOrderMinUnits: config.firstOrderMinUnits },
+      { status: result.status, firstOrderMinUnits: config.firstOrderMinUnits, notice },
       { status: result.status === "recibido" ? 201 : 200, headers: PRIVATE },
     );
   } catch (error) {

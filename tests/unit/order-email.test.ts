@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { buildOrderEmail, orderFields, sendOrderEmail, type OrderEmailInput } from "../../src/lib/order-email";
+import { formSubmitNotice, sendBrowserNotice } from "../../src/lib/browser-notice";
+import { buildOrderEmail, emailChannel, orderBrowserNotice, orderFields, sendOrderEmail, type OrderEmailInput } from "../../src/lib/order-email";
 
 const pedido: OrderEmailInput = {
   id: 42,
@@ -55,26 +56,56 @@ test("si Resend falla no rompe el pedido", async () => {
   assert.equal(await sendOrderEmail(pedido), "error");
 });
 
-test("por FormSubmit: cada prenda y cada dato en su fila, desde la dirección fija de la tienda", async () => {
+test("por FormSubmit: lo manda el navegador, con cada prenda y cada dato en su fila", async () => {
   const filas = orderFields(pedido, "https://inedita-tienda.vercel.app");
   assert.deepEqual(Object.keys(filas), ["Pedido", "Prenda 1", "Prenda 2", "Subtotal", "Total con 10% OFF efectivo/transferencia", "Nombre", "Teléfono", "Entrega", "Pago", "Comentario", "Ver en el panel", "WhatsApp de la clienta"]);
   assert.equal(filas["Prenda 2"], "Top — Talle S — Blanco — x1 — $18.000");
   assert.equal(filas.Entrega, "Envío a coordinar — Fisherton");
 
+  // Sin clave de Resend: el servidor no manda nada (FormSubmit rechaza los envíos desde Vercel)
+  const llamadas: unknown[] = [];
+  globalThis.fetch = (async (...args: unknown[]) => {
+    llamadas.push(args);
+    return new Response("{}");
+  }) as typeof fetch;
+  const channel = await emailChannel();
+  assert.deepEqual(channel, { kind: "browser", to: "ineditarosario@gmail.com" });
+  assert.equal(await sendOrderEmail(pedido), "navegador");
+  assert.equal(llamadas.length, 0);
+
+  // ...y le pasa al navegador el aviso armado
+  const notice = orderBrowserNotice(channel, pedido, "https://inedita-tienda.vercel.app");
+  assert.equal(notice?.url, "https://formsubmit.co/ajax/ineditarosario%40gmail.com");
+  assert.equal(notice?.subject, "Nuevo pedido web #INE-0042 · Ana Pérez · $40.500");
+  assert.equal(notice?.fields["Prenda 1"], "Vestido <Lino> — Talle M — x1 — $45.000");
+  process.env.ORDERS_EMAIL = "otra@inedita.test";
+  assert.equal(orderBrowserNotice(await emailChannel(), pedido, "x")?.url, "https://formsubmit.co/ajax/otra%40inedita.test");
+  // Con Resend no hay aviso para el navegador
+  assert.equal(orderBrowserNotice({ kind: "resend", apiKey: "re_x", from: "a", to: "b" }, pedido, "x"), null);
+});
+
+test("el navegador manda el aviso como formulario común, con keepalive, y nunca rompe", async () => {
   const llamadas: { url: string; init: RequestInit }[] = [];
   globalThis.fetch = (async (url: string, init: RequestInit) => {
     llamadas.push({ url, init });
-    return new Response(JSON.stringify({ success: "true", message: "The form was submitted successfully." }), { status: 200 });
+    return new Response("{}");
   }) as typeof fetch;
-  assert.equal(await sendOrderEmail(pedido), "enviado");
+  sendBrowserNotice(formSubmitNotice("ineditarosario@gmail.com", "Asunto", { Nombre: "Ana", _subject: "pisado" }));
+  assert.equal(llamadas.length, 1);
   assert.equal(llamadas[0].url, "https://formsubmit.co/ajax/ineditarosario%40gmail.com");
-  const headers = llamadas[0].init.headers as Record<string, string>;
-  assert.equal(headers.referer, "https://inedita-tienda.vercel.app/");
-  const body = JSON.parse(String(llamadas[0].init.body));
-  assert.equal(body._subject, "Nuevo pedido web #INE-0042 · Ana Pérez · $40.500");
-  assert.equal(body["Prenda 1"], "Vestido <Lino> — Talle M — x1 — $45.000");
-
-  // Sin activar todavía: no sale, queda como error (el pedido sigue igual)
-  globalThis.fetch = (async () => new Response(JSON.stringify({ success: "false", message: "This form needs Activation." }), { status: 200 })) as unknown as typeof fetch;
-  assert.equal(await sendOrderEmail(pedido), "error");
+  assert.equal(llamadas[0].init.keepalive, true);
+  assert.deepEqual(llamadas[0].init.headers, { Accept: "application/json" }); // sin content-type JSON: no hay consulta previa de CORS
+  const body = llamadas[0].init.body as URLSearchParams;
+  assert.equal(body.get("Nombre"), "Ana");
+  assert.equal(body.get("_subject"), "Asunto");
+  assert.equal(body.get("_template"), "table");
+  // Otro destino o sin aviso: no manda nada
+  sendBrowserNotice({ url: "https://otro.sitio/ajax/x", subject: "x", fields: {} });
+  sendBrowserNotice(null);
+  assert.equal(llamadas.length, 1);
+  // Si fetch falla, no rompe
+  globalThis.fetch = (() => {
+    throw new TypeError("sin red");
+  }) as unknown as typeof fetch;
+  sendBrowserNotice(formSubmitNotice("a@b.c", "x", {}));
 });

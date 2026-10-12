@@ -2,7 +2,8 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { wholesaleCustomers } from "@/db/schema";
-import { sendNotice } from "@/lib/order-email";
+import { formSubmitNotice, type BrowserNotice } from "@/lib/browser-notice";
+import { emailChannel, sendNotice } from "@/lib/order-email";
 import { SITE_URL } from "@/lib/site";
 import { SALES_CHANNELS } from "@/lib/wholesale-config";
 import { toWhatsappNumber, whatsappUrl } from "@/lib/whatsapp";
@@ -105,8 +106,14 @@ export function approvalMessage(name: string, code: string, siteUrl: string, fir
     .join("\n\n");
 }
 
-/** Aviso a INEDITA de una solicitud nueva. Nunca tira error. */
-export async function notifyWholesaleSignup(c: WholesaleSignup) {
-  const who = c.business ? `${c.name} (${c.business})` : c.name;
-  await sendNotice(`Nueva solicitud mayorista · ${who} · ${c.city}`, signupFields(c, SITE_URL));
+const signupSubject = (c: WholesaleSignup) => `Nueva solicitud mayorista · ${c.business ? `${c.name} (${c.business})` : c.name} · ${c.city}`;
+
+/**
+ * Aviso a INEDITA de una solicitud nueva. Con Resend lo manda el servidor (después de responder); con
+ * FormSubmit devuelve el aviso para que lo mande el navegador. Nunca tira error.
+ */
+export async function wholesaleSignupNotice(c: WholesaleSignup, later: (task: () => Promise<unknown>) => void): Promise<BrowserNotice | null> {
+  const channel = await emailChannel();
+  if (channel.kind === "resend") later(() => sendNotice(signupSubject(c), signupFields(c, SITE_URL)));
+  return channel.kind === "browser" ? formSubmitNotice(channel.to, signupSubject(c), signupFields(c, SITE_URL)) : null;
 }

@@ -2,9 +2,10 @@ import { cookies } from "next/headers";
 import { revalidateTag } from "next/cache";
 import { after } from "next/server";
 import { getSettings, TAGS } from "@/lib/catalog";
-import { sendOrderEmail } from "@/lib/order-email";
+import { emailChannel, orderBrowserNotice, sendOrderEmail, type OrderEmailInput } from "@/lib/order-email";
 import { createOrder, OrderError, orderInputSchema } from "@/lib/orders";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { SITE_URL } from "@/lib/site";
 import { orderRules, wholesaleFromCookie } from "@/lib/wholesale";
 import { WHOLESALE_COOKIE } from "@/lib/wholesale-config";
 
@@ -29,19 +30,20 @@ export async function POST(request: Request) {
     const rules = access ? await orderRules(access) : null;
     const order = await createOrder(parsed.data, settings, request.headers.get("user-agent"), rules, access?.customer.id ?? null);
     revalidateTag(TAGS.bestsellers, "max");
-    // Aviso por mail a INEDITA, después de responder (no demora el WhatsApp de la clienta)
-    after(() =>
-      sendOrderEmail({
-        id: order.id,
-        label: order.label,
-        message: order.message,
-        customerName: parsed.data.customerName,
-        customerPhone: parsed.data.customerPhone,
-        total: parsed.data.paymentMethod === "tarjeta" ? order.subtotal : order.cashTotal,
-        wholesale: Boolean(access),
-      }),
-    );
-    return Response.json(order, { status: 201 });
+    // Aviso por mail a INEDITA: con Resend sale del servidor después de responder; con FormSubmit lo
+    // manda el navegador de la clienta (va en la respuesta como "notice")
+    const email: OrderEmailInput = {
+      id: order.id,
+      label: order.label,
+      message: order.message,
+      customerName: parsed.data.customerName,
+      customerPhone: parsed.data.customerPhone,
+      total: parsed.data.paymentMethod === "tarjeta" ? order.subtotal : order.cashTotal,
+      wholesale: Boolean(access),
+    };
+    const channel = await emailChannel();
+    if (channel.kind === "resend") after(() => sendOrderEmail(email));
+    return Response.json({ ...order, notice: orderBrowserNotice(channel, email, SITE_URL) }, { status: 201 });
   } catch (error) {
     if (error instanceof OrderError) {
       return Response.json({ error: error.message, details: error.details }, { status: error.status });

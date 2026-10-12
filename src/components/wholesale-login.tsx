@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { WhatsAppIcon } from "@/components/icons";
 import { useWholesale } from "@/components/wholesale";
+import { sendBrowserNotice } from "@/lib/browser-notice";
 import { SALES_CHANNELS } from "@/lib/wholesale-config";
 import { whatsappUrl } from "@/lib/whatsapp";
 
@@ -212,6 +213,7 @@ function SignupForm({ whatsappNumber, onHasCode }: { whatsappNumber: string; onH
         setSending(false);
         return;
       }
+      sendBrowserNotice(data.notice);
       setDone(data.status ?? "recibido");
       setFirstOrderMin(Number(data.firstOrderMinUnits) || 0);
     } catch {
