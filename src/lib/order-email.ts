@@ -32,17 +32,60 @@ export type OrderEmailInput = {
 
 const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/** El texto del WhatsApp separado en prendas ("• ...") y datos ("Clave: valor"). */
+function parseOrderMessage(message: string) {
+  const items: string[] = [];
+  const rows: [string, string][] = [];
+  for (const line of message.split("\n").slice(1)) {
+    const t = line.trim();
+    if (t.startsWith("• ")) items.push(t.slice(2));
+    else {
+      const i = t.indexOf(": ");
+      if (i > 0) rows.push([t.slice(0, i), t.slice(i + 2)]);
+    }
+  }
+  return { items, rows };
+}
+
+/** Mail con el formato del sistema mayorista: INEDITA, una línea, los datos en filas, las prendas y botones. */
+export function noticeHtml(n: { intro: string; rows: [string, string][]; items?: string[]; buttons?: { label: string; url: string }[] }): string {
+  const row = ([k, v]: [string, string]) =>
+    `<tr><td style="padding:9px 16px 9px 0;color:#666;font-size:15px;vertical-align:top;border-bottom:1px solid #eee">${escapeHtml(k)}</td><td style="padding:9px 0;font-size:15px;font-weight:700;text-align:right;border-bottom:1px solid #eee">${escapeHtml(v)}</td></tr>`;
+  const items = n.items?.length
+    ? `<p style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#777;margin:24px 0 4px">Prendas</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">${n.items.map((i) => `<tr><td style="padding:9px 0;font-size:15px;border-bottom:1px solid #eee">${escapeHtml(i)}</td></tr>`).join("")}</table>`
+    : "";
+  const buttons = (n.buttons ?? [])
+    .map(
+      (b) =>
+        `<a href="${escapeHtml(b.url)}" style="display:inline-block;margin:0 8px 8px 0;padding:12px 18px;border:1px solid #111;color:#111;text-decoration:none;font-size:12px;letter-spacing:.14em;text-transform:uppercase">${escapeHtml(b.label)}</a>`,
+    )
+    .join("");
+  return `<div style="font-family:Helvetica,Arial,sans-serif;color:#111;max-width:560px;line-height:1.4">
+<p style="font-size:30px;font-weight:700;letter-spacing:.2em;margin:0 0 6px">INEDITA</p>
+<p style="font-size:17px;color:#555;margin:0 0 20px">${escapeHtml(n.intro)}</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">${n.rows.map(row).join("")}</table>
+${items}
+${buttons ? `<p style="margin:28px 0 0">${buttons}</p>` : ""}
+</div>`;
+}
+
 export function buildOrderEmail(o: OrderEmailInput, siteUrl: string) {
   const subject = `${o.wholesale ? "Pedido MAYORISTA" : "Nuevo pedido web"} ${o.label} · ${o.customerName} · ${formatPrice(o.total)}`;
   const adminUrl = `${siteUrl}/admin/pedidos/${o.id}`;
   const firstName = o.customerName.trim().split(/\s+/)[0] ?? "";
   const toCustomer = whatsappUrl(toWhatsappNumber(o.customerPhone), `Hola ${firstName}! Te escribimos de INEDITA por tu pedido ${o.label}.`);
   const text = `${o.message}\n\nVer el pedido en el panel: ${adminUrl}\nEscribirle por WhatsApp: ${toCustomer}\n`;
-  const html = `<div style="font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#111;max-width:560px">
-<p style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin:0 0 12px">INEDITA · ${o.wholesale ? "Pedido mayorista" : "Pedido web"}</p>
-<pre style="white-space:pre-wrap;font-family:inherit;font-size:15px;margin:0 0 20px">${escapeHtml(o.message)}</pre>
-<p style="margin:0"><a href="${escapeHtml(adminUrl)}" style="color:#111">Ver el pedido en el panel</a> &nbsp;·&nbsp; <a href="${escapeHtml(toCustomer)}" style="color:#111">Escribirle por WhatsApp</a></p>
-</div>`;
+  const { items, rows } = parseOrderMessage(o.message);
+  const html = noticeHtml({
+    intro: `${o.wholesale ? "Pedido MAYORISTA" : "Nuevo pedido web"} ${o.label}.`,
+    rows,
+    items,
+    buttons: [
+      { label: "Ver en el panel", url: adminUrl },
+      { label: "Escribirle por WhatsApp", url: toCustomer },
+    ],
+  });
   return { subject, text, html, adminUrl, toCustomer };
 }
 
@@ -52,16 +95,10 @@ export function buildOrderEmail(o: OrderEmailInput, siteUrl: string) {
  */
 export function orderFields(o: OrderEmailInput, siteUrl: string): Record<string, string> {
   const { adminUrl, toCustomer } = buildOrderEmail(o, siteUrl);
+  const { items, rows } = parseOrderMessage(o.message);
   const fields: Record<string, string> = { Pedido: `${o.label}${o.wholesale ? " (MAYORISTA)" : ""}` };
-  let prenda = 0;
-  for (const line of o.message.split("\n").slice(1)) {
-    const t = line.trim();
-    if (t.startsWith("• ")) fields[`Prenda ${++prenda}`] = t.slice(2);
-    else {
-      const i = t.indexOf(": ");
-      if (i > 0) fields[t.slice(0, i)] = t.slice(i + 2);
-    }
-  }
+  items.forEach((item, i) => (fields[`Prenda ${i + 1}`] = item));
+  for (const [k, v] of rows) fields[k] = v;
   fields["Ver en el panel"] = adminUrl;
   fields["WhatsApp de la clienta"] = toCustomer;
   return fields;
@@ -139,9 +176,16 @@ export async function sendNotice(subject: string, fields: Record<string, string>
   const text = Object.entries(fields)
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
+  // Los links van como botones; el resto, en filas
+  const entries = Object.entries(fields);
+  const html = noticeHtml({
+    intro: subject,
+    rows: entries.filter(([, v]) => !/^https?:\/\//.test(v)),
+    buttons: entries.filter(([, v]) => /^https?:\/\//.test(v)).map(([label, url]) => ({ label, url })),
+  });
   let error: string | null;
   try {
-    error = await sendWithResend(resend, { subject, text });
+    error = await sendWithResend(resend, { subject, text, html });
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
