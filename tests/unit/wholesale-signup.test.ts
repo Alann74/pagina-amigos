@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createWholesaleToken, hashCode, newPersonalCode, normalizeCode, wholesaleFromCookie } from "../../src/lib/wholesale";
-import { approvalMessage, normalizeInstagram, signupFields, wholesaleSignupSchema } from "../../src/lib/wholesale-signup";
+import { approvalMessage, approvalNotice, normalizeInstagram, signupFields, wholesaleSignupSchema } from "../../src/lib/wholesale-signup";
 
 process.env.ADMIN_SESSION_SECRET ??= "secreto-de-prueba-para-los-tests-123";
 
@@ -85,4 +85,13 @@ test("mail de aviso: todos los datos y los links para aprobar y escribirle", () 
   assert.equal(fields["CUIT / DNI"], undefined);
   assert.equal(fields["Aprobar en el panel"], "https://inedita-tienda.vercel.app/admin/mayoristas");
   assert.match(fields["Escribirle por WhatsApp"], /^https:\/\/wa\.me\/5493415551234\?text=Hola%20Laura/);
+});
+
+test("mail al aprobar: el código, el mínimo y el botón para mandarlo por WhatsApp", () => {
+  const n = approvalNotice({ name: "Laura Gómez", business: "Lali Showroom", phone: "341 555-1234", city: "Funes" }, "K7PM-Q3XD", "https://wa.me/5493415551234?text=x", 25, "https://inedita.test");
+  assert.equal(n.subject, "Código mayorista de Laura Gómez (Lali Showroom): K7PM-Q3XD");
+  assert.equal(n.fields["Código personal"], "K7PM-Q3XD");
+  assert.equal(n.fields["Primera compra"], "Mínimo 25 prendas");
+  assert.equal(n.fields["Mandarle el código por WhatsApp"], "https://wa.me/5493415551234?text=x");
+  assert.equal(approvalNotice({ name: "Ana", business: null, phone: "1", city: "x" }, "A", "w", 0, "s").fields["Primera compra"], "Sin mínimo");
 });

@@ -26,8 +26,8 @@ export async function POST(request: Request) {
 
   try {
     const result = await registerWholesaleCustomer(parsed.data);
-    // Aviso por mail a INEDITA (si ya estaba pendiente, ya se avisó la primera vez)
-    const notice = result.status === "recibido" ? await wholesaleSignupNotice(parsed.data, (task) => after(task)) : null;
+    // Aviso por mail a INEDITA (también si ya estaba pendiente y vuelve a mandar los datos)
+    const notice = result.status === "ya-aprobado" ? null : await wholesaleSignupNotice(parsed.data, (task) => after(task), result.status === "ya-pendiente");
     // El mínimo de la primera compra se avisa en la confirmación (a las que ya eran clientas se les saca al aprobarlas)
     return Response.json(
       { status: result.status, firstOrderMinUnits: config.firstOrderMinUnits, notice },

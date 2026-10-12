@@ -106,14 +106,43 @@ export function approvalMessage(name: string, code: string, siteUrl: string, fir
     .join("\n\n");
 }
 
-const signupSubject = (c: WholesaleSignup) => `Nueva solicitud mayorista · ${c.business ? `${c.name} (${c.business})` : c.name} · ${c.city}`;
+const who = (c: { name: string; business: string | null }) => (c.business ? `${c.name} (${c.business})` : c.name);
+const signupSubject = (c: WholesaleSignup, again: boolean) =>
+  `${again ? "Solicitud mayorista (volvió a mandar sus datos)" : "Nueva solicitud mayorista"} · ${who(c)} · ${c.city}`;
 
 /**
  * Aviso a INEDITA de una solicitud nueva: por Resend lo manda el servidor (después de responder); por
  * FormSubmit devuelve el aviso para que lo mande el navegador. Nunca tira error.
  */
-export async function wholesaleSignupNotice(c: WholesaleSignup, later: (task: () => Promise<unknown>) => void): Promise<BrowserNotice | null> {
+export async function wholesaleSignupNotice(
+  c: WholesaleSignup,
+  later: (task: () => Promise<unknown>) => void,
+  again = false,
+): Promise<BrowserNotice | null> {
   const channels = await emailChannels();
-  if (channels.resend) later(() => sendNotice(signupSubject(c), signupFields(c, SITE_URL)));
-  return channels.browser ? formSubmitNotice(channels.browser.to, signupSubject(c), signupFields(c, SITE_URL), channels.browser.cc) : null;
+  const subject = signupSubject(c, again);
+  if (channels.resend) later(() => sendNotice(subject, signupFields(c, SITE_URL)));
+  return channels.browser ? formSubmitNotice(channels.browser.to, subject, signupFields(c, SITE_URL), channels.browser.cc) : null;
+}
+
+/** Mail para INEDITA al aprobar: el código y el botón para mandárselo por WhatsApp (por si no se copió del panel). */
+export function approvalNotice(
+  c: { name: string; business: string | null; phone: string; city: string },
+  code: string,
+  whatsapp: string,
+  firstOrderMinUnits: number,
+  siteUrl: string,
+) {
+  return {
+    subject: `Código mayorista de ${who(c)}: ${code}`,
+    fields: {
+      Cliente: who(c),
+      WhatsApp: c.phone,
+      Localidad: c.city,
+      "Código personal": code,
+      "Primera compra": firstOrderMinUnits > 0 ? `Mínimo ${firstOrderMinUnits} prendas` : "Sin mínimo",
+      "Mandarle el código por WhatsApp": whatsapp,
+      "Ver en el panel": `${siteUrl}/admin/mayoristas`,
+    } as Record<string, string>,
+  };
 }

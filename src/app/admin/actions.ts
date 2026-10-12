@@ -3,6 +3,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { updateTag } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
@@ -16,7 +17,8 @@ import { clientIp, isBlocked, recordFailure } from "@/lib/rate-limit";
 import { SITE_URL } from "@/lib/site";
 import { deleteFiles } from "@/lib/storage";
 import { getWholesaleSettings, hashCode, newPersonalCode, orderRules } from "@/lib/wholesale";
-import { approvalMessage } from "@/lib/wholesale-signup";
+import { sendNotice } from "@/lib/order-email";
+import { approvalMessage, approvalNotice } from "@/lib/wholesale-signup";
 import { toWhatsappNumber, whatsappUrl } from "@/lib/whatsapp";
 
 export type ActionResult = { ok: true; message?: string } | { ok: false; error: string };
@@ -572,13 +574,18 @@ export async function approveWholesaleCustomer(id: number, existingCustomer?: bo
       .where(eq(wholesaleCustomers.id, id));
     // El WhatsApp avisa el mínimo de la primera compra solo si le corresponde
     const rules = await orderRules({ config: await getWholesaleSettings(), customer: { ...customer, existingCustomer: existing } });
-    const text = approvalMessage(customer.name, code, SITE_URL, rules.firstOrder ? rules.minUnits : 0);
+    const firstMin = rules.firstOrder ? rules.minUnits : 0;
+    const text = approvalMessage(customer.name, code, SITE_URL, firstMin);
+    const whatsapp = whatsappUrl(toWhatsappNumber(customer.phone), text);
+    // El código también llega por mail (Resend), por si no se copió del panel
+    const notice = approvalNotice(customer, code, whatsapp, firstMin, SITE_URL);
+    after(() => sendNotice(notice.subject, notice.fields));
     return {
       ok: true,
       message: customer.status === "aprobado" ? "Código nuevo generado (el anterior ya no sirve)" : `${customer.name} aprobado`,
       code,
       text,
-      whatsapp: whatsappUrl(toWhatsappNumber(customer.phone), text),
+      whatsapp,
     };
   } catch (e) {
     const r = fail(e);

@@ -218,7 +218,10 @@ function Customers({ customers, firstOrderMinUnits }: { customers: Customer[]; f
               {a.code}
             </span>
           </p>
-          <p className="mt-1 text-[12.5px] text-mute">Mandáselo ahora: por seguridad el código no se guarda y no se vuelve a mostrar (si lo pierde, le generás uno nuevo).</p>
+          <p className="mt-1 text-[12.5px] text-mute">
+            Mandáselo ahora. También te llega por mail. Por seguridad el código no se guarda y no se vuelve a mostrar en el panel (si lo pierde, le
+            generás uno nuevo).
+          </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <a href={a.whatsapp} target="_blank" rel="noopener" className="btn btn-primary gap-2" data-testid="wholesale-send-code">
               <WhatsAppIcon size={16} /> Mandar por WhatsApp
