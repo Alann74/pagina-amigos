@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Drawer } from "@/components/layout/drawer";
 import { FilterIcon, GridOneIcon, GridTwoIcon } from "@/components/icons";
 import { ProductCard } from "@/components/product/product-card";
+import { useWholesale } from "@/components/wholesale";
 import { revealDelay } from "@/lib/reveal";
 import { displayColor, displaySize, formatPrice, sizeOrder, slugify } from "@/lib/format";
 import type { SearchEntry } from "@/lib/search";
@@ -59,6 +60,8 @@ export function ProductListing({ products, emptyText = "No hay productos para mo
   const mobileColumns = useUi((s) => s.mobileColumns);
   const setMobileColumns = useUi((s) => s.setMobileColumns);
   const [filters, setFilters] = useState<Filters>({ sizes: [], colors: [], price: null, sort: "relevancia" });
+  // En modo mayorista, el filtro y el orden por precio usan el precio por mayor (el que se ve)
+  const { priceFor } = useWholesale();
   const [visible, setVisible] = useState(PAGE);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -89,14 +92,15 @@ export function ProductListing({ products, emptyText = "No hay productos para mo
     let list = products.filter((p) => {
       if (filters.sizes.length && !filters.sizes.some((s) => p.sizes.includes(s))) return false;
       if (colorSet.size && !p.colors.some((c) => colorSet.has(slugify(c)))) return false;
-      if (range && (p.price < range.min || (range.max !== null && p.price > range.max))) return false;
+      const price = priceFor(p.id, p.price);
+      if (range && (price < range.min || (range.max !== null && price > range.max))) return false;
       return true;
     });
     if (filters.sort === "nuevos") list = [...list].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || Number(a.soldOut) - Number(b.soldOut));
-    if (filters.sort === "precio-asc") list = [...list].sort((a, b) => a.price - b.price);
-    if (filters.sort === "precio-desc") list = [...list].sort((a, b) => b.price - a.price);
+    if (filters.sort === "precio-asc") list = [...list].sort((a, b) => priceFor(a.id, a.price) - priceFor(b.id, b.price));
+    if (filters.sort === "precio-desc") list = [...list].sort((a, b) => priceFor(b.id, b.price) - priceFor(a.id, a.price));
     return list;
-  }, [products, filters]);
+  }, [products, filters, priceFor]);
 
   const activeCount = filters.sizes.length + filters.colors.length + (filters.price ? 1 : 0);
   const cols = hydrated ? mobileColumns : 2;

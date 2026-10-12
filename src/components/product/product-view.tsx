@@ -160,9 +160,6 @@ export function ProductView({
                 <span className="ml-2 text-[13px] text-mute line-through">{formatPrice(product.compareAtPrice)}</span>
               ) : null}
             </p>
-            {wholesale.active ? (
-              <p className="label text-mute">{wholesale.hasWholesalePrice(product.id) ? "Precio por mayor" : "Precio de tienda"}</p>
-            ) : null}
             {cashDiscountPercent > 0 ? (
               <p className="text-[13px] tabular-nums" data-price>
                 <strong className="font-medium">{formatPrice(cashPrice(price, cashDiscountPercent))}</strong> con {cashDiscountPercent}% OFF efectivo/transferencia

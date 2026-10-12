@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { formatPrice } from "@/lib/format";
 import { WHOLESALE_FLAG, type WholesaleSession } from "@/lib/wholesale-config";
 import type { CartItem } from "@/stores/cart";
@@ -65,15 +65,19 @@ export function WholesaleProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const value: Wholesale = session
-    ? {
-        active: true,
-        session,
-        priceFor: (id, retail) => session.prices[id] ?? retail,
-        hasWholesalePrice: (id) => id in session.prices,
-        exit: exitWholesale,
-      }
-    : OFF;
+  const value: Wholesale = useMemo(
+    () =>
+      session
+        ? {
+            active: true,
+            session,
+            priceFor: (id, retail) => session.prices[id] ?? retail,
+            hasWholesalePrice: (id) => id in session.prices,
+            exit: exitWholesale,
+          }
+        : OFF,
+    [session],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

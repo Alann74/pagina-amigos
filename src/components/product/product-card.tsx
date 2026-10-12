@@ -51,9 +51,6 @@ export function ProductCard({ product, priority = false, sizes = "(min-width: 10
           <span data-price>{formatPrice(price)}</span>
           {product.colors.length > 1 ? <span className="shrink-0 text-[11.5px] text-mute">{product.colors.length} colores</span> : null}
         </p>
-        {wholesale.active ? (
-          <p className="mt-1 text-[12px] leading-snug text-mute">{wholesale.hasWholesalePrice(product.id) ? "Precio por mayor" : "Precio de tienda"}</p>
-        ) : null}
         {cashDiscountPercent > 0 ? (
           <p className="mt-1 text-[12px] leading-snug text-mute tabular-nums">
             <span className="font-medium text-ink" data-price>

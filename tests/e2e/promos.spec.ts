@@ -57,15 +57,23 @@ test("acceso mayorista con código", async ({ page, browser }, testInfo) => {
   // Mayorista: código incorrecto y correcto
   const ctx = await browser.newContext();
   const shop = await ctx.newPage();
+  // Precio de tienda del primer producto (para comparar después)
+  await shop.goto("/productos");
+  const firstCard = shop.getByTestId("product-card").first();
+  const retailText = (await firstCard.locator("[data-price]").first().textContent())?.trim() ?? "";
   await shop.goto("/mayoristas");
   await shop.getByTestId("wholesale-code").fill("nada");
   await shop.getByTestId("wholesale-enter").click();
   await expect(shop.locator("p[role=alert]")).toHaveText("Código incorrecto");
   await shop.getByTestId("wholesale-code").fill("e2emayor");
   await shop.getByTestId("wholesale-enter").click();
-  await shop.waitForURL("**/productos");
+  // Entra a la tienda de siempre (mismo formato), con los precios por mayor
+  await shop.waitForURL((u) => u.pathname === "/");
   await expect(shop.getByText("Modo mayorista · precios por mayor")).toBeVisible();
-  await expect(shop.getByTestId("product-card").first()).toContainText(/Precio (por mayor|de tienda)/);
+  await shop.goto("/productos");
+  await expect(firstCard).toBeVisible();
+  await expect(firstCard).not.toContainText(/Precio (por mayor|de tienda)/);
+  await expect(firstCard.locator("[data-price]").first()).not.toHaveText(retailText);
   // Salir vuelve a los precios de la tienda
   await shop.getByRole("button", { name: "Salir" }).click();
   await shop.waitForURL((u) => u.pathname === "/");

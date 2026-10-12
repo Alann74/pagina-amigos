@@ -15,8 +15,8 @@ export function WholesaleLogin({ contactHref }: { contactHref: string }) {
     return (
       <div className="mt-8 space-y-3" data-testid="wholesale-active">
         <p className="border border-ink p-4 text-[14px]">Ya estás navegando con precios por mayor.</p>
-        <Link href="/productos" className="btn btn-primary w-full">
-          Ver productos
+        <Link href="/" className="btn btn-primary w-full">
+          Ver la tienda
         </Link>
         <button type="button" onClick={() => void exit()} className="btn btn-secondary w-full">
           Salir del modo mayorista
@@ -38,8 +38,8 @@ export function WholesaleLogin({ contactHref }: { contactHref: string }) {
         setSending(false);
         return;
       }
-      // Recarga completa: así toda la tienda arranca ya en modo mayorista
-      window.location.href = new URL("/productos", window.location.origin).href;
+      // Recarga completa al inicio: la misma tienda de siempre, ya con los precios por mayor
+      window.location.href = new URL("/", window.location.origin).href;
     } catch {
       setError("No pudimos conectarnos. Probá de nuevo.");
       setSending(false);
