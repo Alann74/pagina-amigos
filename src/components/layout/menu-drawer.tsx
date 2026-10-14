@@ -25,6 +25,17 @@ export function MenuDrawer({ categories, whatsappHref, instagram }: { categories
               Ver todo
             </Link>
           </li>
+          <li>
+            <Link
+              href="/mayoristas"
+              onClick={close}
+              className="flex items-baseline justify-between gap-3 py-2 text-[15px] font-medium uppercase tracking-[0.12em]"
+              data-testid="menu-wholesale"
+            >
+              Mayoristas
+              <span className="text-[11px] font-normal normal-case tracking-normal text-mute">Precios por mayor</span>
+            </Link>
+          </li>
         </ul>
         <ul className="mt-6 space-y-0.5 border-t border-line pt-6">
           {categories.map((c) => (
@@ -59,11 +70,6 @@ export function MenuDrawer({ categories, whatsappHref, instagram }: { categories
           <li>
             <Link href="/contacto" onClick={close} className="nav-link">
               Contacto
-            </Link>
-          </li>
-          <li>
-            <Link href="/mayoristas" onClick={close} className="nav-link">
-              Mayoristas
             </Link>
           </li>
         </ul>
