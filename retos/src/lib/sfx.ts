@@ -23,10 +23,13 @@ function tone(freq: number, start: number, dur: number, type: OscillatorType = "
   g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + start + dur);
   o.connect(g).connect(c.destination); o.start(c.currentTime + start); o.stop(c.currentTime + start + dur + 0.05);
 }
+function buzz(ms: number) { if (enabled && typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); }
 export const sfx = {
+  tick(i = 0) { tone(360 + Math.min(i, 24) * 38, 0, 0.05, "square", 0.035); },
+  pop() { tone(480, 0, 0.07, "sine", 0.06, 880); buzz(8); },
   unlock() { ac(); },
-  tap() { tone(520, 0, 0.07, "triangle", 0.05); },
-  vote() { tone(440, 0, 0.08, "triangle", 0.07); tone(660, 0.08, 0.12, "triangle", 0.07); },
+  tap() { tone(520, 0, 0.07, "triangle", 0.05); buzz(6); },
+  vote() { tone(440, 0, 0.08, "triangle", 0.07); tone(660, 0.08, 0.12, "triangle", 0.07); buzz(18); },
   heartbeat() { tone(70, 0, 0.18, "sine", 0.18, 45); tone(70, 0.22, 0.16, "sine", 0.14, 45); },
   flip() { tone(300, 0, 0.18, "sawtooth", 0.05, 900); },
   reveal() { [523, 659, 784, 1046].forEach((f, i) => tone(f, i * 0.09, 0.22, "square", 0.05)); },

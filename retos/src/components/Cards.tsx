@@ -13,8 +13,15 @@ export function CardBack({ n, selected, voted, onClick, disabled, dealt = 0 }: {
     </>
   );
   const style = { ["--i" as string]: dealt } as React.CSSProperties;
+  const move = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.pointerType !== "mouse") return;
+    const r = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty("--rx", `${-((e.clientY - r.top) / r.height - 0.5) * 12}deg`);
+    e.currentTarget.style.setProperty("--ry", `${((e.clientX - r.left) / r.width - 0.5) * 14}deg`);
+  };
+  const leave = (e: React.PointerEvent<HTMLElement>) => { e.currentTarget.style.removeProperty("--rx"); e.currentTarget.style.removeProperty("--ry"); };
   return onClick ? (
-    <button type="button" className={cls} style={style} onClick={onClick} disabled={disabled} aria-label={label} aria-pressed={!!selected}>{inner}</button>
+    <button type="button" className={cls} style={style} onClick={onClick} onPointerMove={move} onPointerLeave={leave} disabled={disabled} aria-label={label} aria-pressed={!!selected}>{inner}</button>
   ) : (
     <div className={cls} style={style} role="img" aria-label={label}>{inner}</div>
   );

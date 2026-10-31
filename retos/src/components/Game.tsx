@@ -88,6 +88,11 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
   const prevTurn = useRef<string | null>(null);
   useEffect(() => { if (myTurnKey && myTurnKey !== prevTurn.current && !showReveal) { sfx.turn(); if (navigator.vibrate) navigator.vibrate(60); } prevTurn.current = myTurnKey; }, [myTurnKey, showReveal]);
 
+  // Sonido al entrar alguien nuevo a la sala de espera
+  const prevCount = useRef(view.players.length);
+  useEffect(() => { if (view.phase === "lobby" && view.players.length > prevCount.current) sfx.pop(); prevCount.current = view.players.length; }, [view.players.length, view.phase]);
+  const screenKey = `${view.phase}:${view.round}:${turn?.key ?? ""}:${turn?.stage ?? ""}:${turn?.holderId ?? ""}:${turn?.revealed ? 1 : 0}`;
+
   // Estado en una frase, siempre visible
   const status = banner(view, name);
   const holderName = turn?.holderId ? name(turn.holderId) : "";
@@ -100,7 +105,7 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
         </button>
         <div className="top-actions">
           <button className={`icon-btn joker-btn${view.me.jokers.length ? " has" : ""}`} onClick={() => setSheet("jokers")} aria-label={`Mis comodines: ${view.me.jokers.length}`}>
-            <Icon name="star" /><span className="badge">{view.me.jokers.length}</span>
+            <Icon name="star" /><span key={view.me.jokers.length} className="badge">{view.me.jokers.length}</span>
           </button>
           <button className="icon-btn" onClick={() => setSheet("history")} aria-label="Historial de turnos"><Icon name="history" /></button>
           <button className="icon-btn" onClick={toggleSound} aria-label={sound ? "Silenciar sonidos" : "Activar sonidos"} aria-pressed={sound}><Icon name={sound ? "sound" : "mute"} /></button>
@@ -110,7 +115,7 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
       {!online && <div className="offline" role="status"><Icon name="clock" size={16} /> Sin conexión. Reconectando… tu lugar sigue guardado.</div>}
 
       <main className="page">
-        <div className={`banner ${status.tone}`} role="status" aria-live="polite">
+        <div key={status.title} className={`banner ${status.tone}`} role="status" aria-live="polite">
           <span className="banner-ic"><Icon name={status.icon} size={22} /></span>
           <div><p className="banner-t">{status.title}</p>{status.sub && <p className="banner-s">{status.sub}</p>}</div>
         </div>
@@ -120,11 +125,13 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
             {view.me.jokers.map((j) => <JokerChip key={j.id} type={j.type} />)}
           </button>
         )}
-        {view.phase === "lobby" && <Lobby c={c} />}
-        {view.phase === "writing" && <Writing c={c} />}
-        {view.phase === "turn" && turn && (turn.revealed ? (showReveal ? <p className="muted center">Revelando…</p> : <Revealed c={c} turn={turn} />) : <Voting c={c} turn={turn} />)}
-        {view.phase === "summary" && view.summary && <Summary c={c} />}
-        {view.phase === "ended" && view.final && <Final c={c} />}
+        <div key={screenKey} className="screen">
+          {view.phase === "lobby" && <Lobby c={c} />}
+          {view.phase === "writing" && <Writing c={c} />}
+          {view.phase === "turn" && turn && (turn.revealed ? (showReveal ? <p className="muted center">Revelando…</p> : <Revealed c={c} turn={turn} />) : <Voting c={c} turn={turn} />)}
+          {view.phase === "summary" && view.summary && <Summary c={c} />}
+          {view.phase === "ended" && view.final && <Final c={c} />}
+        </div>
       </main>
 
       {showReveal && turn && <Reveal turn={turn} holderName={holderName} onClose={markSeen} />}

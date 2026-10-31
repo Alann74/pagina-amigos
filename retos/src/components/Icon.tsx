@@ -23,7 +23,7 @@ const P: Record<string, string> = {
 };
 export function Icon({ name, size = 20 }: { name: keyof typeof P; size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false" className={`ic ic-${name}`}>
       <path d={P[name]} />
     </svg>
   );

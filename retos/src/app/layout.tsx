@@ -12,7 +12,7 @@ export const viewport: Viewport = { themeColor: "#191329", width: "device-width"
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" data-motion="full">
-      <body><SettingsProvider>{children}</SettingsProvider></body>
+      <body><div className="ambient" aria-hidden="true"><i /><i /><i /></div><SettingsProvider>{children}</SettingsProvider></body>
     </html>
   );
 }

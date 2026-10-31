@@ -4,8 +4,9 @@ import QRCode from "qrcode";
 import { sfx } from "@/lib/sfx";
 import { LIMITS } from "@/lib/types";
 import type { Action, RoomView, ViewPlayer, ViewTurn } from "@/lib/types";
-import { CardBack, JOKER_INFO, JokerChip } from "./Cards";
+import { CardBack, Confetti, JOKER_INFO, JokerChip } from "./Cards";
 import { Icon } from "./Icon";
+import { useSettings } from "./Settings";
 
 export interface Ctx {
   view: RoomView;
@@ -16,9 +17,23 @@ export interface Ctx {
 }
 const PLACEHOLDERS = ["Imitar a un profesor durante un minuto", "Hablar con acento extranjero hasta el próximo turno", "Dejar que otro escriba un mensaje desde tu celular", "Hacer 10 sentadillas cantando", "Contar tu papelón más grande"];
 
-function Pill({ p, extra }: { p: ViewPlayer; extra?: React.ReactNode }) {
+function CountUp({ to }: { to: number }) {
+  const { reduced } = useSettings();
+  const [v, setV] = useState(reduced ? to : 0);
+  useEffect(() => {
+    if (reduced) { setV(to); return; }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (t: number) => { const k = Math.min(1, (t - start) / 800); setV(Math.round(to * (1 - Math.pow(1 - k, 3)))); if (k < 1) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [to, reduced]);
+  return <>{v}</>;
+}
+
+function Pill({ p, extra, i = 0 }: { p: ViewPlayer; extra?: React.ReactNode; i?: number }) {
   return (
-    <li className={`pill${p.connected ? "" : " is-off"}`}>
+    <li className={`pill${p.connected ? "" : " is-off"}`} style={{ ["--i" as string]: i }}>
       <span className="pill-dot" aria-hidden="true" />
       <span className="pill-name">{p.name}</span>
       {p.isHost && <span className="pill-badge"><Icon name="crown" size={13} />Anfitrión</span>}
@@ -58,7 +73,7 @@ export function Lobby({ c }: { c: Ctx }) {
 
       <div className="panel">
         <h2 className="h2">En la sala <span className="count">{view.players.length}</span></h2>
-        <ul className="pills">{view.players.map((p) => <Pill key={p.id} p={p} extra={view.me.isHost && !p.isHost && (
+        <ul className="pills">{view.players.map((p, i) => <Pill key={p.id} p={p} i={i} extra={view.me.isHost && !p.isHost && (
           <button className="pill-x" aria-label={`Sacar a ${p.name}`} onClick={() => send({ type: "kick", playerId: p.id })}><Icon name="x" size={14} /></button>)} />)}</ul>
       </div>
 
@@ -122,7 +137,7 @@ export function Writing({ c }: { c: Ctx }) {
       )}
       <div className="panel">
         <h2 className="h2">Retos listos <span className="count">{view.writtenCount}/{view.activeCount}</span></h2>
-        <ul className="pills">{active.map((p) => <Pill key={p.id} p={p} extra={<span className={`pill-badge ${p.written ? "ok" : "muted"}`}>{p.written ? <><Icon name="check" size={13} />listo</> : <><Icon name="clock" size={13} />escribiendo</>}</span>} />)}</ul>
+        <ul className="pills">{active.map((p, i) => <Pill key={p.id} p={p} i={i} extra={<span className={`pill-badge ${p.written ? "ok" : "muted"}`}>{p.written ? <><Icon name="check" size={13} />listo</> : <><Icon name="clock" size={13} />escribiendo</>}</span>} />)}</ul>
         {view.me.isHost && view.writtenCount >= 2 && view.writtenCount < view.activeCount && (
           <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "forceVoting" }).then((e) => e && c.toast(e))}>Seguir sin esperar a los que faltan</button>
         )}
@@ -306,10 +321,10 @@ export function Summary({ c }: { c: Ctx }) {
     <section className="stack">
       <div className="panel">
         <p className="eyebrow">Ronda {s.round} terminada</p>
-        <h2 className="h1">{s.turns} retos resueltos</h2>
+        <h2 className="h1"><CountUp to={s.turns} /> retos resueltos</h2>
         <table className="table">
           <thead><tr><th scope="col">Jugador</th><th scope="col">Retos</th><th scope="col">Prendas</th><th scope="col">Retiros</th></tr></thead>
-          <tbody>{s.rows.map((r) => <tr key={r.playerId}><th scope="row">{r.name}</th><td>{r.done}</td><td>{r.alt}</td><td>{r.withdrawn}</td></tr>)}</tbody>
+          <tbody>{s.rows.map((r, i) => <tr key={r.playerId} style={{ ["--i" as string]: i }}><th scope="row">{r.name}</th><td><CountUp to={r.done} /></td><td><CountUp to={r.alt} /></td><td><CountUp to={r.withdrawn} /></td></tr>)}</tbody>
         </table>
         <p className="muted small">Cuentan los retos cumplidos y las prendas alternativas cumplidas. Los retiros se anotan aparte.</p>
       </div>
@@ -326,12 +341,13 @@ export function Final({ c }: { c: Ctx }) {
   const rows = c.view.final!.rows;
   return (
     <section className="stack">
+      <Confetti />
       <div className="panel center"><p className="eyebrow">Fin de la partida</p><h2 className="h1">Así quedó la mesa</h2></div>
       <ol className="podium">
         {rows.map((r, i) => (
-          <li key={r.playerId} className={i === 0 ? "first" : ""}>
-            <span className="pos">{i + 1}º</span><span className="pname">{r.name}{r.playerId === c.view.me.id ? " (vos)" : ""}</span>
-            <span className="pscore">{r.score} <small>pts</small></span>
+          <li key={r.playerId} className={i === 0 ? "first" : ""} style={{ ["--i" as string]: rows.length - 1 - i }}>
+            <span className="pos">{i === 0 ? <Icon name="crown" size={26} /> : `${i + 1}º`}</span><span className="pname">{r.name}{r.playerId === c.view.me.id ? " (vos)" : ""}</span>
+            <span className="pscore"><CountUp to={r.score} /> <small>pts</small></span>
             <span className="pdetail">{r.done} retos · {r.alt} prendas · {r.withdrawn} retiros</span>
           </li>
         ))}

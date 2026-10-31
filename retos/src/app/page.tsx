@@ -37,7 +37,10 @@ export default function Home() {
     <main className="page home">
       <header className="hero">
         <div className="hero-cards" aria-hidden="true"><i /><i /><i /></div>
-        <h1 className="logo"><span>Boca</span><span>Abajo</span></h1>
+        <h1 className="logo" aria-label="Boca Abajo">
+          <span aria-hidden="true">{Array.from("Boca").map((ch, i) => <b key={i} style={{ ["--i" as string]: i }}>{ch}</b>)}</span>
+          <span aria-hidden="true">{Array.from("Abajo").map((ch, i) => <b key={i} style={{ ["--i" as string]: i + 4 }}>{ch}</b>)}</span>
+        </h1>
         <p className="tagline">Retos entre amigos. Votan sin saber quién está detrás de cada carta.</p>
       </header>
 
@@ -67,7 +70,7 @@ export default function Home() {
 
       <section aria-labelledby="como" className="steps">
         <h2 id="como" className="h2">Cómo se juega</h2>
-        <ol>{STEPS.map(([t, d], i) => <li key={t}><span className="step-n">{i + 1}</span><div><strong>{t}</strong><p className="muted">{d}</p></div></li>)}</ol>
+        <ol>{STEPS.map(([t, d], i) => <li key={t} style={{ ["--i" as string]: i }}><span className="step-n">{i + 1}</span><div><strong>{t}</strong><p className="muted">{d}</p></div></li>)}</ol>
       </section>
     </main>
   );
