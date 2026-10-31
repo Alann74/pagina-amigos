@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test:unit": "tsx --test tests/unit/*.test.ts",
-    "test:e2e": "node tests/e2e/partida.cjs"
+    "test:e2e": "node tests/e2e/partida.cjs",
+    "test:prod": "node tests/e2e/produccion.cjs"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.2.0",
