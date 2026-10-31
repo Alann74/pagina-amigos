@@ -362,21 +362,16 @@ button.card-back:not(:disabled):hover { box-shadow: 0 10px 0 rgba(0,0,0,.45), 0 
 .ember { transform-box: fill-box; transform-origin: center; animation: ember 1.7s ease-in-out infinite; }
 @keyframes ember { 50% { opacity: 0.55; transform: scale(0.8); } }
 
-/* sonrisa: reposo + sonrisa grande con dientes que se abre y se cierra */
-.smile { fill: none; stroke: #120A07; stroke-width: 11px; stroke-linecap: round; animation: smileOut 7s ease-in-out infinite; }
-.grin { transform-box: fill-box; transform-origin: 50% 0%; opacity: 0; transform: scale(0.9, 0); animation: grin 7s cubic-bezier(.3,1.5,.5,1) infinite; }
-@keyframes grin { 0%, 6% { transform: scale(0.9, 0); opacity: 0; } 14% { transform: scale(1, 1.1); opacity: 1; } 18%, 46% { transform: scale(1, 1); opacity: 1; } 54%, 100% { transform: scale(0.9, 0); opacity: 0; } }
-@keyframes smileOut { 0%, 6% { opacity: 1; } 10%, 50% { opacity: 0; } 56%, 100% { opacity: 1; } }
 
 /* brillo en los lentes */
 .spark { transform-box: fill-box; transform-origin: center; opacity: 0; animation: spark 5s ease-in-out infinite; animation-delay: var(--d, 0s); }
 @keyframes spark { 0%, 12%, 100% { opacity: 0; transform: scale(0) rotate(0); } 6% { opacity: 1; transform: scale(1.2) rotate(45deg); } }
 
-/* movimiento reducido: sonrisa fija y una bocanada de humo quieta */
+/* movimiento reducido: una bocanada de humo quieta */
 :root[data-motion="reduced"] .puff:not(:first-child) { display: none; }
 :root[data-motion="reduced"] .puff-o, :root[data-motion="reduced"] .puff-i { stroke-dasharray: none; opacity: 1; animation: none; }
 :root[data-motion="reduced"] .puff-o { stroke-width: 44px; } :root[data-motion="reduced"] .puff-i { stroke-width: 28px; }
-:root[data-motion="reduced"] .smile { animation: none; opacity: 1; } :root[data-motion="reduced"] .grin, :root[data-motion="reduced"] .spark { animation: none; opacity: 0; }
+:root[data-motion="reduced"] .spark { animation: none; opacity: 0; }
 :root[data-motion="reduced"] .mascot-wrap { animation: none; }
 @media (prefers-reduced-motion: reduce) { .mascot-wrap { animation: none; } }
 

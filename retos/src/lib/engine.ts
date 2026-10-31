@@ -1,6 +1,8 @@
 // Motor del juego: lógica pura y determinista (salvo el RNG inyectable). El servidor es la autoridad.
+// Sin anfitrión: todos juegan igual. Empezar = todos "listos"; el árbitro de cada turno se sortea;
+// si alguien no responde, cualquiera puede destrabar pasados IDLE_MS; terminar = votación por mayoría.
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
-import { LIMITS } from "./types";
+import { IDLE_MS, LIMITS } from "./types";
 import type { Action, JokerType, Phase, ResolutionKind, Stage } from "./types";
 
 export class GameError extends Error {
@@ -30,6 +32,7 @@ export interface Player {
   name: string;
   tokenHash: string;
   active: boolean;
+  ready: boolean;
   joinedAt: number;
   jokers: Joker[];
   total: Counters;
@@ -41,6 +44,7 @@ export interface Turn {
   key: string;
   n: number;
   stage: Stage;
+  stageAt: number;
   challengeId: string;
   challengeText: string;
   cards: string[]; // cards[i] = jugador detrás de la carta i+1 (secreto hasta la revelación)
@@ -55,6 +59,7 @@ export interface Turn {
   chain: string[];
   shared: boolean;
   partnerId: string | null;
+  judgeId: string | null; // árbitro sorteado que confirma cómo se resolvió
   alt: { text: string; proposerId: string; votes: Record<string, boolean> } | null;
   altRejected: string[];
   resolution: { kind: ResolutionKind; text?: string } | null;
@@ -67,10 +72,12 @@ export interface HistoryItem {
 export interface Room {
   code: string;
   createdAt: number;
-  hostId: string;
-  startJokers: 1 | 2;
   phase: Phase;
+  phaseAt: number;
+  clock: number;
   paused: boolean;
+  pausedBy: string | null;
+  endVotes: string[];
   round: number;
   roundSize: number;
   resolved: number;
@@ -115,21 +122,21 @@ export const activePlayers = (r: Room) => r.players.filter((p) => p.active);
 export const getPlayer = (r: Room, id: string | undefined | null) => r.players.find((p) => p.id === id);
 const nameOf = (r: Room, id: string | undefined | null) => getPlayer(r, id)?.name ?? "alguien";
 
-export function createRoom(hostName: string, now: number, code: string, rng: Rng = cryptoRng) {
-  void rng;
-  const name = cleanText(hostName, LIMITS.name);
-  if (!name) throw new GameError("name", "Elegí un nombre.");
-  const token = randomBytes(24).toString("hex");
-  const host = newPlayer(name, token, now);
-  const room: Room = {
-    code, createdAt: now, hostId: host.id, startJokers: 1, phase: "lobby", paused: false,
-    round: 0, roundSize: 0, resolved: 0, pool: [], players: [host], turn: null, history: [], summary: null, seq: 0,
-  };
-  return { room, token, playerId: host.id };
+function newPlayer(name: string, token: string, now: number): Player {
+  return { id: newId(4), name, tokenHash: hashToken(token), active: true, ready: false, joinedAt: now, jokers: [], total: zero(), round: zero(), challenge: null };
 }
 
-function newPlayer(name: string, token: string, now: number): Player {
-  return { id: newId(4), name, tokenHash: hashToken(token), active: true, joinedAt: now, jokers: [], total: zero(), round: zero(), challenge: null };
+/** Quien crea la sala es un jugador más: no tiene ningún poder especial. */
+export function createRoom(creatorName: string, now: number, code: string) {
+  const name = cleanText(creatorName, LIMITS.name);
+  if (!name) throw new GameError("name", "Elegí un nombre.");
+  const token = randomBytes(24).toString("hex");
+  const first = newPlayer(name, token, now);
+  const room: Room = {
+    code, createdAt: now, phase: "lobby", phaseAt: now, clock: now, paused: false, pausedBy: null, endVotes: [],
+    round: 0, roundSize: 0, resolved: 0, pool: [], players: [first], turn: null, history: [], summary: null, seq: 0,
+  };
+  return { room, token, playerId: first.id };
 }
 
 export function addPlayer(room: Room, rawName: string, now: number) {
@@ -166,19 +173,37 @@ function dealJoker(room: Room, rng: Rng): { playerId: string; joker: Joker } | n
   return { playerId: target.id, joker };
 }
 
-function startRound(room: Room, startsFromLobby: boolean, rng: Rng) {
+/** ¿Se puede empezar (o seguir de ronda)? Todos los conectados listos y al menos 3 listos. */
+export function canProceed(room: Room, connected: (id: string) => boolean): boolean {
+  if (room.phase !== "lobby" && room.phase !== "summary") return false;
+  const ready = room.players.filter((p) => p.ready);
+  return ready.length >= LIMITS.minPlayers && room.players.every((p) => p.ready || !connected(p.id));
+}
+
+function startRound(room: Room, fromLobby: boolean, rng: Rng, exclude: Set<string>) {
   room.round += 1;
   room.phase = "writing";
+  room.phaseAt = room.clock;
   room.pool = [];
   room.turn = null;
   room.summary = null;
   room.resolved = 0;
+  room.endVotes = [];
   for (const p of room.players) {
-    p.active = true;
+    p.active = !exclude.has(p.id); // quien no está listo y sin conexión espera a la próxima ronda
+    p.ready = false;
     p.challenge = null;
     p.round = zero();
   }
-  if (startsFromLobby) for (let i = 0; i < room.startJokers; i++) dealJoker(room, rng);
+  // Comodines iniciales: 1 o 2 en total, repartidos y de tipo al azar.
+  if (fromLobby) { const n = 1 + rng.int(2); for (let i = 0; i < n; i++) dealJoker(room, rng); }
+}
+
+function tryProceed(room: Room, rng: Rng, connected: (id: string) => boolean): boolean {
+  if (!canProceed(room, connected)) return false;
+  const exclude = new Set(room.players.filter((p) => !p.ready).map((p) => p.id));
+  startRound(room, room.phase === "lobby", rng, exclude);
+  return true;
 }
 
 function maybeBeginTurns(room: Room, rng: Rng, force = false) {
@@ -199,18 +224,18 @@ function startTurn(room: Room, rng: Rng) {
   room.turn = {
     key: `${room.round}-${room.resolved + 1}`,
     n: room.resolved + 1,
-    stage: "voting",
+    stage: "voting", stageAt: room.clock,
     challengeId: pick.id,
     challengeText: pick.text,
     cards, votes: {}, revealed: false,
-    chain: [], shared: false, partnerId: null, alt: null, altRejected: [], resolution: null, events: [],
+    chain: [], shared: false, partnerId: null, judgeId: null, alt: null, altRejected: [], resolution: null, events: [],
   };
 }
 
-function closeVoting(room: Room, now: number, rng: Rng) {
+function closeVoting(room: Room, rng: Rng) {
   const t = room.turn as Turn;
   const tally = t.cards.map(() => 0);
-  for (const [pid, card] of Object.entries(t.votes)) if (t.cards.includes(pid) || getPlayer(room, pid)?.active) tally[card - 1]++;
+  for (const [pid, card] of Object.entries(t.votes)) if (t.cards.includes(pid)) tally[card - 1]++;
   const max = Math.max(...tally);
   const tied = max === 0 ? t.cards.map((_, i) => i + 1) : tally.flatMap((v, i) => (v === max ? [i + 1] : []));
   const winner = tied.length === 1 ? tied[0] : tied[rng.int(tied.length)];
@@ -221,20 +246,26 @@ function closeVoting(room: Room, now: number, rng: Rng) {
   t.originalId = t.holderId;
   t.chain = [t.holderId];
   t.revealed = true;
-  t.revealedAt = now;
+  t.revealedAt = room.clock;
   t.stage = "choosing";
+  t.stageAt = room.clock;
 }
 
-function resolveTo(t: Turn, kind: ResolutionKind, text?: string) {
+/** Pasa a "confirmando" y sortea el árbitro entre quienes no son parte del reto. */
+function resolveTo(room: Room, t: Turn, kind: ResolutionKind, rng: Rng, text?: string) {
   t.resolution = { kind, text };
   t.stage = "confirming";
+  t.stageAt = room.clock;
+  const subjects = new Set([t.holderId, ...(t.shared && t.partnerId ? [t.partnerId] : [])]);
+  const pool = activePlayers(room).filter((p) => !subjects.has(p.id));
+  t.judgeId = pool.length ? pool[rng.int(pool.length)].id : (t.holderId ?? null);
 }
 
 function finishTurn(room: Room, outcome: "ok" | "fail", rng: Rng) {
   const t = room.turn as Turn;
   let res = t.resolution as { kind: ResolutionKind; text?: string };
   if (outcome === "fail" && res.kind !== "withdraw") {
-    t.events.push(`El anfitrión registró que ${nameOf(room, t.holderId)} no lo cumplió: se cuenta como retiro.`);
+    t.events.push(`${nameOf(room, t.judgeId)} (árbitro) registró que ${nameOf(room, t.holderId)} no lo cumplió: se cuenta como retiro.`);
     res = { kind: "withdraw" };
   }
   const subjects = [t.holderId as string, ...(t.shared && t.partnerId ? [t.partnerId] : [])];
@@ -259,18 +290,24 @@ function finishTurn(room: Room, outcome: "ok" | "fail", rng: Rng) {
         .map((p) => ({ playerId: p.id, name: p.name, ...p.round })),
     };
     room.phase = "summary";
+    room.phaseAt = room.clock;
     room.turn = null;
+    for (const p of room.players) p.ready = false;
   } else {
     startTurn(room, rng);
   }
 }
 
 // ---------- acciones ----------
-export function applyAction(room: Room, actorId: string, a: Action, now: number, rng: Rng = cryptoRng): void {
+export function applyAction(
+  room: Room, actorId: string, a: Action, now: number, rng: Rng = cryptoRng, connected: (id: string) => boolean = () => true,
+): void {
+  room.clock = now;
   const me = getPlayer(room, actorId);
   if (!me) throw new GameError("not_in_room", "No estás en esta sala.", 403);
-  const isHost = room.hostId === actorId;
-  const needHost = () => { if (!isHost) throw new GameError("host_only", "Solo el anfitrión puede hacer esto.", 403); };
+  const idle = (since: number) => now - since >= IDLE_MS;
+  const needActive = () => { if (!me.active) throw new GameError("inactive", "Mirás esta ronda desde afuera. Entrás en la próxima.", 403); };
+  const tooEarly = () => new GameError("too_early", "Todavía no: esperá un poco a que respondan.", 409);
   const turnOf = (key: string, stage?: Stage | Stage[]) => {
     const t = room.turn;
     if (room.phase !== "turn" || !t) throw new GameError("no_turn", "Ahora no hay un turno en juego.", 409);
@@ -280,50 +317,59 @@ export function applyAction(room: Room, actorId: string, a: Action, now: number,
     return t;
   };
 
-  if (a.type === "resume") { needHost(); room.paused = false; return; }
-  if (a.type === "pause") { needHost(); if (room.phase === "ended") return; room.paused = true; return; }
-  if (a.type === "end") {
-    needHost();
-    if (room.phase === "lobby") throw new GameError("wrong_phase", "Todavía no empezó la partida.", 409);
-    room.phase = "ended"; room.paused = false; room.turn = null; return;
+  // Acciones que valen también en pausa / al terminar
+  if (a.type === "resume") { needActive(); room.paused = false; room.pausedBy = null; return; }
+  if (a.type === "pause") {
+    needActive();
+    if (room.phase === "lobby" || room.phase === "ended") throw new GameError("wrong_phase", "No hay partida para pausar.", 409);
+    room.paused = true; room.pausedBy = me.id; return;
+  }
+  if (a.type === "voteEnd") {
+    needActive();
+    if (room.phase === "lobby" || room.phase === "ended") throw new GameError("wrong_phase", "No hay partida para terminar.", 409);
+    room.endVotes = room.endVotes.filter((id) => getPlayer(room, id)?.active);
+    const has = room.endVotes.includes(me.id);
+    if (a.on && !has) room.endVotes.push(me.id);
+    if (!a.on && has) room.endVotes = room.endVotes.filter((id) => id !== me.id);
+    if (room.endVotes.length * 2 > activePlayers(room).length) { room.phase = "ended"; room.paused = false; room.turn = null; }
+    return;
+  }
+  if (a.type === "leave") {
+    if (room.phase === "turn") throw new GameError("wrong_phase", "No podés irte en medio de un turno. Esperá al resumen de la ronda.", 409);
+    room.players = room.players.filter((p) => p.id !== me.id);
+    room.endVotes = room.endVotes.filter((id) => id !== me.id);
+    if (room.phase === "lobby" || room.phase === "summary") tryProceed(room, rng, connected);
+    else if (room.phase === "writing") { if (activePlayers(room).length < LIMITS.minPlayers) room.phase = "ended"; else maybeBeginTurns(room, rng); }
+    if (room.phase !== "lobby" && room.phase !== "ended" && room.players.length < LIMITS.minPlayers) { room.phase = "ended"; room.turn = null; }
+    return;
   }
   if (room.phase === "ended") throw new GameError("ended", "La partida terminó.", 409);
   if (room.paused) throw new GameError("paused", "La partida está en pausa.", 409);
 
   switch (a.type) {
-    case "setSettings": {
-      needHost();
-      if (room.phase !== "lobby") throw new GameError("wrong_phase", "Los comodines se configuran antes de empezar.", 409);
-      if (a.startJokers !== 1 && a.startJokers !== 2) throw new GameError("bad_input", "Valor inválido.");
-      room.startJokers = a.startJokers; return;
+    case "ready": {
+      if (room.phase !== "lobby" && room.phase !== "summary") throw new GameError("wrong_phase", "Ahora no hace falta confirmar.", 409);
+      me.ready = !!a.ready;
+      tryProceed(room, rng, connected); return;
     }
     case "start": {
-      needHost();
-      if (room.phase !== "lobby") throw new GameError("wrong_phase", "La partida ya empezó.", 409);
-      if (room.players.length < LIMITS.minPlayers) throw new GameError("few_players", `Hacen falta al menos ${LIMITS.minPlayers} jugadores.`, 409);
-      startRound(room, true, rng); return;
-    }
-    case "kick": {
-      needHost();
-      if (!["lobby", "writing", "summary"].includes(room.phase)) throw new GameError("wrong_phase", "Solo se puede sacar a alguien entre turnos.", 409);
-      if (a.playerId === room.hostId) throw new GameError("bad_input", "No podés sacarte a vos mismo.");
-      const idx = room.players.findIndex((p) => p.id === a.playerId);
-      if (idx < 0) throw new GameError("bad_input", "Ese jugador no está.");
-      room.players.splice(idx, 1);
-      if (room.phase === "writing") maybeBeginTurns(room, rng);
+      if (room.phase !== "lobby" && room.phase !== "summary") throw new GameError("wrong_phase", "La partida ya empezó.", 409);
+      if (!me.ready) throw new GameError("not_ready", "Primero tocá “listo”.", 409);
+      if (!tryProceed(room, rng, connected)) throw new GameError("not_all_ready", `Faltan jugadores por estar listos (hacen falta ${LIMITS.minPlayers} como mínimo).`, 409);
       return;
     }
     case "submitChallenge": {
       if (room.phase !== "writing") throw new GameError("wrong_phase", "Ahora no se piden retos.", 409);
-      if (!me.active) throw new GameError("inactive", "Entrás en la próxima ronda.", 409);
+      needActive();
       const text = cleanText(a.text, LIMITS.challenge);
       if (text.length < 3) throw new GameError("bad_input", "Escribí un reto de al menos 3 letras.");
       me.challenge = text;
       maybeBeginTurns(room, rng); return;
     }
     case "forceVoting": {
-      needHost();
       if (room.phase !== "writing") throw new GameError("wrong_phase", "Ahora no se piden retos.", 409);
+      needActive();
+      if (!idle(room.phaseAt)) throw tooEarly();
       if (activePlayers(room).filter((p) => p.challenge).length < 2) throw new GameError("few_challenges", "Hacen falta al menos 2 retos escritos.", 409);
       maybeBeginTurns(room, rng, true); return;
     }
@@ -333,21 +379,28 @@ export function applyAction(room: Room, actorId: string, a: Action, now: number,
       if (me.id in t.votes) throw new GameError("already_voted", "Ya votaste.", 409);
       if (!Number.isInteger(a.card) || a.card < 1 || a.card > t.cards.length) throw new GameError("bad_input", "Carta inválida.");
       t.votes[me.id] = a.card;
-      if (t.cards.every((id) => id in t.votes)) closeVoting(room, now, rng);
+      if (t.cards.every((id) => id in t.votes)) closeVoting(room, rng);
       return;
     }
-    case "closeVoting": { needHost(); turnOf(a.turnKey, "voting"); closeVoting(room, now, rng); return; }
-    case "hostSkip": {
-      needHost();
+    case "closeVoting": {
+      const t = turnOf(a.turnKey, "voting");
+      needActive();
+      if (!idle(t.stageAt)) throw tooEarly();
+      closeVoting(room, rng); return;
+    }
+    case "skipHolder": {
       const t = turnOf(a.turnKey, ["choosing", "altVoting"]);
-      t.events.push(`${nameOf(room, t.holderId)} no respondió: el anfitrión lo registró como retiro.`);
-      t.alt = null; resolveTo(t, "withdraw"); return;
+      needActive();
+      if (me.id === t.holderId || (t.shared && me.id === t.partnerId)) throw new GameError("not_allowed", "No podés saltearte a vos mismo.", 403);
+      if (!idle(t.stageAt)) throw tooEarly();
+      t.events.push(`${nameOf(room, t.holderId)} no respondió: se registró como retiro.`);
+      t.alt = null; resolveTo(room, t, "withdraw", rng); return;
     }
     case "fulfill":
     case "withdraw": {
       const t = turnOf(a.turnKey, "choosing");
       if (t.holderId !== me.id) throw new GameError("not_your_turn", "No es tu turno.", 403);
-      resolveTo(t, a.type === "fulfill" ? "done" : "withdraw"); return;
+      resolveTo(room, t, a.type === "fulfill" ? "done" : "withdraw", rng); return;
     }
     case "propose": {
       const t = turnOf(a.turnKey, "choosing");
@@ -355,8 +408,8 @@ export function applyAction(room: Room, actorId: string, a: Action, now: number,
       const text = cleanText(a.text, LIMITS.alt);
       if (text.length < 3) throw new GameError("bad_input", "Escribí la prenda alternativa.");
       t.alt = { text, proposerId: me.id, votes: {} };
-      t.stage = "altVoting";
-      if (altVoters(room, t).length === 0) { resolveTo(t, "alt", text); }
+      t.stage = "altVoting"; t.stageAt = now;
+      if (altVoters(room, t).length === 0) resolveTo(room, t, "alt", rng, text);
       return;
     }
     case "altVote": {
@@ -364,12 +417,14 @@ export function applyAction(room: Room, actorId: string, a: Action, now: number,
       if (!t.alt || !altVoters(room, t).includes(me.id)) throw new GameError("not_voter", "No votás esta prenda.", 403);
       if (me.id in t.alt.votes) throw new GameError("already_voted", "Ya votaste.", 409);
       t.alt.votes[me.id] = !!a.accept;
-      settleAlt(room, t, false); return;
+      settleAlt(room, t, false, rng); return;
     }
     case "altClose": {
-      needHost();
       const t = turnOf(a.turnKey, "altVoting");
-      settleAlt(room, t, true); return;
+      needActive();
+      if (me.id === t.holderId) throw new GameError("not_allowed", "No podés cerrar la votación de tu propia prenda.", 403);
+      if (!idle(t.stageAt)) throw tooEarly();
+      settleAlt(room, t, true, rng); return;
     }
     case "useJoker": {
       const t = turnOf(a.turnKey, "choosing");
@@ -385,6 +440,7 @@ export function applyAction(room: Room, actorId: string, a: Action, now: number,
         t.chain.push(target.id);
         t.holderId = target.id;
         t.alt = null;
+        t.stageAt = now;
         t.events.push(`${me.name} usó Pasar el reto y se lo pasó a ${target.name}.`);
       } else {
         if (t.chain.length < 2) throw new GameError("not_passed", "El rebote solo sirve si te pasaron el reto.", 409);
@@ -393,19 +449,20 @@ export function applyAction(room: Room, actorId: string, a: Action, now: number,
         t.shared = true;
         t.partnerId = prev;
         t.alt = null;
+        t.stageAt = now;
         t.events.push(`${me.name} usó Rebote: ahora lo hacen juntos ${me.name} y ${nameOf(room, prev)}.`);
       }
       return;
     }
     case "confirm": {
-      needHost();
       const t = turnOf(a.turnKey, "confirming");
-      finishTurn(room, a.outcome === "fail" ? "fail" : "ok", rng); void t; return;
-    }
-    case "nextRound": {
-      needHost();
-      if (room.phase !== "summary") throw new GameError("wrong_phase", "La ronda no terminó.", 409);
-      startRound(room, false, rng); return;
+      const isSubject = me.id === t.holderId || (t.shared && me.id === t.partnerId);
+      if (me.id !== t.judgeId) {
+        // Si el árbitro sorteado no responde, otro jugador (que no sea parte del reto) puede confirmar.
+        if (!me.active || isSubject) throw new GameError("not_judge", "Solo el árbitro sorteado confirma este turno.", 403);
+        if (!idle(t.stageAt)) throw new GameError("not_judge", "Confirma el árbitro sorteado. Si no responde, podés hacerlo en unos segundos.", 403);
+      }
+      finishTurn(room, a.outcome === "fail" ? "fail" : "ok", rng); return;
     }
   }
 }
@@ -415,7 +472,7 @@ export function altVoters(room: Room, t: Turn): string[] {
   return activePlayers(room).filter((p) => !excluded.has(p.id)).map((p) => p.id);
 }
 
-function settleAlt(room: Room, t: Turn, forced: boolean) {
+function settleAlt(room: Room, t: Turn, forced: boolean, rng: Rng) {
   const alt = t.alt as NonNullable<Turn["alt"]>;
   const voters = altVoters(room, t);
   const votes = voters.filter((id) => id in alt.votes);
@@ -423,11 +480,11 @@ function settleAlt(room: Room, t: Turn, forced: boolean) {
   if (anyReject) {
     t.altRejected.push(alt.text);
     t.events.push(`Rechazaron la prenda de ${nameOf(room, t.holderId)}: «${alt.text}».`);
-    t.alt = null; t.stage = "choosing"; return;
+    t.alt = null; t.stage = "choosing"; t.stageAt = room.clock; return;
   }
   const allIn = votes.length === voters.length;
-  if (allIn || (forced && votes.length > 0)) { resolveTo(t, "alt", alt.text); return; }
-  if (forced) { // nadie votó: el anfitrión descarta la propuesta
-    t.alt = null; t.stage = "choosing";
+  if (allIn || (forced && votes.length > 0)) { resolveTo(room, t, "alt", rng, alt.text); return; }
+  if (forced) { // nadie votó: se descarta la propuesta
+    t.alt = null; t.stage = "choosing"; t.stageAt = room.clock;
   }
 }

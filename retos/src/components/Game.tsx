@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api, lastName, saveName } from "@/lib/client";
 import { sfx } from "@/lib/sfx";
 import { useRoom } from "@/lib/useRoom";
+import { LIMITS } from "@/lib/types";
 import type { RoomView } from "@/lib/types";
 import { JOKER_INFO, JokerChip } from "./Cards";
 import { Icon } from "./Icon";
@@ -139,7 +140,8 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
       {view.paused && (
         <div className="pause" role="alertdialog" aria-label="Partida en pausa">
           <div className="panel center"><Icon name="pause" size={36} /><h2 className="h1">Partida en pausa</h2>
-            {view.me.isHost ? <button className="btn btn-primary btn-xl" onClick={() => send({ type: "resume" })}><Icon name="play" />Reanudar</button> : <p className="muted">Esperando que {name(view.hostId)} reanude.</p>}
+            <p className="muted">{view.pausedBy ? `${name(view.pausedBy)} pausó la partida.` : ""}</p>
+            {view.me.active ? <button className="btn btn-primary btn-xl" onClick={() => send({ type: "resume" })}><Icon name="play" />Reanudar</button> : <p className="muted">Esperando que alguien reanude.</p>}
           </div>
         </div>
       )}
@@ -174,20 +176,25 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
                 <h2 className="h1">Menú</h2>
                 <div className="panel">
                   <h3 className="h2">Jugadores</h3>
-                  <ul className="pills">{view.players.map((p) => <li key={p.id} className={`pill${p.connected ? "" : " is-off"}`}><span className="pill-dot" aria-hidden="true" /><span className="pill-name">{p.name}{p.id === view.me.id ? " (vos)" : ""}</span>{p.isHost && <span className="pill-badge"><Icon name="crown" size={13} />Anfitrión</span>}{!p.connected && <span className="pill-badge muted">sin conexión</span>}{!p.active && <span className="pill-badge muted">entra en la próxima ronda</span>}<span className="pill-score">{p.score} pts</span></li>)}</ul>
+                  <ul className="pills">{view.players.map((p) => <li key={p.id} className={`pill${p.connected ? "" : " is-off"}`}><span className="pill-dot" aria-hidden="true" /><span className="pill-name">{p.name}{p.id === view.me.id ? " (vos)" : ""}</span>{!p.connected && <span className="pill-badge muted">sin conexión</span>}{!p.active && <span className="pill-badge muted">entra en la próxima ronda</span>}<span className="pill-score">{p.score} pts</span></li>)}</ul>
                 </div>
                 <div className="panel">
                   <h3 className="h2">Ajustes</h3>
                   <button className="toggle" role="switch" aria-checked={sound} onClick={toggleSound}><span>Sonidos</span><b>{sound ? "Activados" : "Desactivados"}</b></button>
                   <button className="toggle" role="switch" aria-checked={reduced} onClick={toggleMotion}><span>Reducir movimiento</span><b>{reduced ? "Activado" : "Desactivado"}</b></button>
                 </div>
-                {view.me.isHost && view.phase !== "ended" && (
+                {view.phase !== "ended" && view.phase !== "lobby" && view.me.active && (
                   <div className="panel">
-                    <h3 className="h2">Anfitrión</h3>
-                    {view.phase !== "lobby" && <button className="btn btn-secondary" onClick={() => { void send({ type: view.paused ? "resume" : "pause" }); setSheet(null); }}><Icon name={view.paused ? "play" : "pause"} />{view.paused ? "Reanudar" : "Pausar la partida"}</button>}
-                    {view.phase !== "lobby" && <EndButton onEnd={() => { void send({ type: "end" }); setSheet(null); }} />}
-                    {["writing", "summary"].includes(view.phase) && <p className="muted small">Para sacar a alguien, usá la lista en la sala de espera o esperá al próximo turno.</p>}
+                    <h3 className="h2">La mesa decide</h3>
+                    <button className="btn btn-secondary" onClick={() => { void send({ type: view.paused ? "resume" : "pause" }); setSheet(null); }}><Icon name={view.paused ? "play" : "pause"} />{view.paused ? "Reanudar" : "Pausar la partida"}</button>
+                    <button className="toggle" role="switch" aria-checked={view.me.endVote} onClick={() => send({ type: "voteEnd", on: !view.me.endVote })}>
+                      <span>Votar para terminar la partida</span><b>{view.endVotes}/{Math.floor(view.activeCount / 2) + 1} votos</b>
+                    </button>
+                    <p className="muted small" style={{ marginBottom: 0 }}>Termina cuando más de la mitad vota que sí.</p>
                   </div>
+                )}
+                {["lobby", "writing", "summary"].includes(view.phase) && (
+                  <button className="btn btn-ghost" onClick={() => { void send({ type: "leave" }).then(() => onLeave()); }}>Irme de la sala</button>
                 )}
                 <button className="btn btn-ghost" onClick={onLeave}>Salir de esta sala en este celular</button>
               </>
@@ -201,19 +208,13 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
   );
 }
 
-function EndButton({ onEnd }: { onEnd: () => void }) {
-  const [ask, setAsk] = useState(false);
-  return ask ? (
-    <div className="row gap"><button className="btn btn-ghost" onClick={() => setAsk(false)}>No</button><button className="btn btn-danger" onClick={onEnd}>Sí, terminar la partida</button></div>
-  ) : <button className="btn btn-ghost" onClick={() => setAsk(true)}><Icon name="flag" />Finalizar la partida</button>;
-}
-
 function banner(v: RoomView, name: (id?: string | null) => string): { title: string; sub?: string; icon: "clock" | "star" | "check" | "cards" | "eye" | "pause" | "flag"; tone: string } {
-  const host = name(v.hostId);
-  if (v.paused) return { title: "Partida en pausa", sub: v.me.isHost ? "Podés reanudarla desde el menú." : `Esperando que ${host} reanude`, icon: "pause", tone: "wait" };
+  if (v.paused) return { title: "Partida en pausa", sub: "Cualquiera puede reanudarla", icon: "pause", tone: "wait" };
   const t = v.turn;
   switch (v.phase) {
-    case "lobby": return { title: v.me.isHost ? "Armá la mesa" : "Sala de espera", sub: `${v.players.length} ${v.players.length === 1 ? "jugador" : "jugadores"} · compartí el código`, icon: "cards", tone: "info" };
+    case "lobby": return v.me.ready
+      ? { title: "Listo: esperando a los demás", sub: `${v.readyCount} de ${v.players.length} listos`, icon: "clock", tone: "wait" }
+      : { title: "Tocá “listo” para empezar", sub: `${v.players.length}/${LIMITS.maxPlayers} jugadores · arranca cuando todos estén listos`, icon: "cards", tone: "go" };
     case "writing":
       if (!v.me.active) return { title: "Entrás en la próxima ronda", icon: "eye", tone: "wait" };
       return v.me.myChallenge
@@ -230,9 +231,11 @@ function banner(v: RoomView, name: (id?: string | null) => string): { title: str
       const me = t.holderId === v.me.id;
       if (t.stage === "choosing") return me ? { title: "¡Te tocó! Tu turno", sub: "Elegí cómo resolverlo", icon: "star", tone: "go" } : { title: `Turno de ${name(t.holderId)}`, sub: "Esperando que decida", icon: "clock", tone: "wait" };
       if (t.stage === "altVoting") return t.alt?.eligible.includes(v.me.id) && t.alt.myVote === null ? { title: "Tu turno: votá la prenda", sub: "Todos tienen que aceptarla", icon: "star", tone: "go" } : { title: "Faltan votos de la prenda", sub: `${t.alt?.voted.length ?? 0} de ${t.alt?.eligible.length ?? 0}`, icon: "clock", tone: "wait" };
-      return v.me.isHost ? { title: "Tu turno: confirmá la resolución", sub: "El anfitrión confirma antes de avanzar", icon: "flag", tone: "go" } : { title: "Esperando confirmación", sub: `De ${host}`, icon: "clock", tone: "wait" };
+      return t.judgeId === v.me.id ? { title: "Sos el árbitro: confirmá la resolución", sub: "Te sorteó el azar para este turno", icon: "flag", tone: "go" } : { title: "Esperando confirmación", sub: `Del árbitro sorteado: ${name(t.judgeId)}`, icon: "clock", tone: "wait" };
     }
-    case "summary": return { title: `Ronda ${v.round} terminada`, sub: v.me.isHost ? "Empezá la siguiente cuando quieran" : `Esperando que ${host} siga`, icon: "check", tone: "info" };
+    case "summary": return v.me.ready
+      ? { title: `Ronda ${v.round} terminada`, sub: `Esperando a los demás (${v.readyCount} de ${v.players.length} listos)`, icon: "clock", tone: "wait" }
+      : { title: `Ronda ${v.round} terminada`, sub: "Tocá “seguimos” cuando estés listo", icon: "check", tone: "go" };
     default: return { title: "Partida terminada", icon: "flag", tone: "info" };
   }
 }

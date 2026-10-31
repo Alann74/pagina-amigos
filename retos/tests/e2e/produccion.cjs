@@ -14,13 +14,14 @@ const check = (ok, m) => { console.log(ok ? "  ✔" : "  ✘ FALLA:", m); if (!o
   const P = {}; for (const n of NAMES) P[n] = await (await browser.newContext(o)).newPage();
   const shot = (n, f) => P[n].screenshot({ path: path.join(SHOTS, f + ".png") });
   const click = async (n, re) => { const b = P[n].getByRole("button", { name: re }).first(); await b.waitFor({ state: "visible", timeout: 20000 }); await b.click(); };
+  const clickAny = async (re) => { const end = Date.now() + 25000; while (Date.now() < end) { for (const n of NAMES) { const b = P[n].getByRole("button", { name: re }).first(); if (await b.isVisible().catch(() => false)) { await b.click(); return n; } } await new Promise((r) => setTimeout(r, 250)); } throw new Error("sin botón " + re); };
   const see = (n, re) => P[n].getByText(re).first().waitFor({ state: "visible", timeout: 20000 });
   await P.Ana.goto(BASE); await P.Ana.waitForLoadState("networkidle");
   await P.Ana.getByLabel("Tu nombre").fill("Ana"); await P.Ana.getByRole("button", { name: "Crear sala" }).last().click();
   await P.Ana.waitForURL(/\/sala\/[A-Z]{4}/); const code = P.Ana.url().match(/sala\/([A-Z]{4})/)[1]; console.log("sala", code);
   for (const n of NAMES.slice(1)) { await P[n].goto(`${BASE}/sala/${code}`); await P[n].waitForLoadState("networkidle"); await P[n].getByLabel("¿Cómo te llamás?").fill(n); await P[n].getByRole("button", { name: "Entrar a la sala" }).click(); }
   await P.Ana.waitForFunction(() => document.querySelectorAll(".pills li").length === 3); check(true, "3 jugadores entran por enlace y se ven entre sí");
-  await shot("Ana", "p1-sala"); await click("Ana", /Empezar la partida/);
+  await shot("Ana", "p1-sala"); for (const n of NAMES) await click(n, /Estoy listo/);   // sin anfitrión: arranca cuando todos están listos
   for (const n of NAMES) { await P[n].getByLabel("Escribí tu reto en privado").fill("Reto de " + n + " número uno"); await click(n, /Enviar reto/); }
   await see("Ana", /Reto misterioso/); check(true, "con todos los retos listos se pasa a la votación"); await shot("Beto", "p2-votacion");
   const vote = async (n) => { await P[n].locator("button.card-back").first().click(); await click(n, /Votar la carta 1/); };
@@ -33,11 +34,11 @@ const check = (ok, m) => { console.log(ok ? "  ✔" : "  ✘ FALLA:", m); if (!o
     if (t === 1) { await shot(h, "p4-tu-turno"); await click(h, /Cumplir el reto/); }
     if (t === 2) { await click(h, /Proponer otra prenda/); await P[h].getByLabel("Tu prenda alternativa").fill("Invitar un helado"); await click(h, /^Proponer$/); for (const v of NAMES.filter((x) => x !== h)) await click(v, /Acepto/); }
     if (t === 3) { await click(h, /Retirarme del reto/); await click(h, /Sí, me retiro/); }
-    await click("Ana", /Confirmar y seguir/);
+    await clickAny(/Confirmar y seguir/);   // lo confirma el árbitro sorteado
   }
   await see("Ana", /Ronda 1 terminada/); await shot("Ana", "p5-resumen");
   check((await P.Ana.locator("table tbody tr").count()) === 3, "ronda de 3 jugadores = 3 retos resueltos y resumen");
   await P.Beto.reload(); await see("Beto", /Ronda 1 terminada/); check(true, "reconexión tras recargar mantiene identidad y partida");
-  await click("Ana", /Empezar la ronda 2/); await see("Beto", /Escribí tu reto en privado/); check(true, "nueva ronda pide retos nuevos");
+  for (const n of NAMES) await click(n, /Seguimos.*Ronda 2/); await see("Beto", /Escribí tu reto en privado/); check(true, "nueva ronda pide retos nuevos");
   await browser.close(); console.log(bad ? `${bad} fallas` : "OK"); process.exit(bad ? 1 : 0);
 })().catch((e) => { console.error("FALLÓ:", e.message.split("\n")[0]); process.exit(1); });

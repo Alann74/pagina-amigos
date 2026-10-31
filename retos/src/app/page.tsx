@@ -7,7 +7,7 @@ import { Icon } from "@/components/Icon";
 import { Mascot } from "@/components/Mascot";
 
 const STEPS = [
-  ["Creá la sala", "Una persona la crea y comparte el código o el enlace."],
+  ["Armá la sala", "Cualquiera la crea y comparte el código o el enlace. No hay anfitrión: todos juegan y el azar decide."],
   ["Escribí un reto", "Cada uno escribe uno en privado. Nadie sabe quién escribió cuál."],
   ["Votá una carta", "Hay una carta boca abajo por jugador. Todos votan sin saber quién está detrás."],
   ["Mirá la revelación", "Se da vuelta la carta: aparece el nombre y el reto. Cumplir, cambiar la prenda, comodín o retirarse."],

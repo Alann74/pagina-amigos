@@ -23,6 +23,16 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   const noOverflow = async (n, where) => check(await pages[n].evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `sin scroll horizontal en ${where}`);
   const btn = (n, re) => pages[n].getByRole("button", { name: re }).first();
   const click = async (n, re) => { const b = btn(n, re); await b.waitFor({ state: "visible", timeout: 15000 }); await b.click(); };
+  // Sin anfitrión: el árbitro lo sortea el azar, así que se busca en qué celular aparece el botón.
+  const clickAny = async (re) => {
+    const end = Date.now() + 25000;
+    while (Date.now() < end) {
+      for (const n of NAMES) { const b = pages[n].getByRole("button", { name: re }).first(); if (await b.isVisible().catch(() => false)) { await b.click(); return n; } }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    throw new Error("no apareció el botón " + re);
+  };
+  const allReady = async (re) => { for (const n of NAMES) await click(n, re); };
   const text = (n, re) => pages[n].getByText(re).first().waitFor({ state: "visible", timeout: 15000 });
 
   // 0. Pantalla de entrada: mono con humo y sonrisa; se cierra al tocar
@@ -32,7 +42,7 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
     await sp.waitForTimeout(1500); await sp.screenshot({ path: path.join(SHOTS, "00-splash.png") });
     check(await sp.locator(".splash-logo").isVisible(), "al entrar aparece el logo del mono");
     check(await sp.locator(".splash .puff-i").first().evaluate((e) => parseFloat(getComputedStyle(e).opacity) > 0), "sale humo del cigarrillo (animado)");
-    check(await sp.locator(".splash .grin").evaluate((e) => parseFloat(getComputedStyle(e).opacity) > 0.5), "el mono sonríe (sonrisa grande visible)");
+    check((await sp.locator(".splash .grin, .splash .smile").count()) === 0, "la sonrisa es la original del dibujo (sin capa de sonrisa animada)");
     await sp.locator(".splash").click(); await sp.locator(".splash").waitFor({ state: "detached" });
     check(true, "la pantalla de entrada se cierra al tocar y no vuelve en la sesión");
     await sp.reload(); await sp.waitForTimeout(600);
@@ -60,11 +70,12 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   check(true, "4 jugadores en la sala de espera, entrando por enlace");
   await shot("Ana", "02-sala-espera-anfitrion"); await shot("Beto", "03-sala-espera-jugador");
   await noOverflow("Ana", "sala de espera");
-  check(await btn("Beto", /Empezar la partida/).count() === 0, "el jugador no ve el botón de empezar (solo el anfitrión)");
-
-  // Comodines: 2 y empezar
-  await host.getByRole("radio", { name: "2 comodines" }).click();
-  await click("Ana", /Empezar la partida/);
+  check((await pages.Ana.getByText(/Anfitri/).count()) === 0 && (await pages.Beto.getByText(/Anfitri/).count()) === 0, "no hay anfitrión: nadie tiene rol especial");
+  check((await btn("Beto", /Estoy listo/).count()) === 1 && (await btn("Ana", /Estoy listo/).count()) === 1, "quien creó la sala también tiene que tocar “listo” como los demás");
+  await click("Ana", /Estoy listo/); await click("Beto", /Estoy listo/); await click("Cami", /Estoy listo/);
+  await pages.Ana.waitForTimeout(1500);
+  check((await pages.Ana.getByLabel("Escribí tu reto en privado").count()) === 0, "con 3 de 4 listos no arranca");
+  await click("Dani", /Estoy listo/);   // el último listo dispara el inicio, solo
 
   // 2. Retos en privado
   for (const n of NAMES) await pages[n].getByLabel("Escribí tu reto en privado").waitFor();
@@ -139,10 +150,12 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await pages[holder].getByLabel("Tu prenda alternativa").fill("Bailar 30 segundos");
   await click(holder, /^Proponer$/);
   for (const v of voters) { await click(v, /Acepto/); }
-  await text("Ana", /confirmá la resolución|Esperando confirmación/i);
+  await text("Ana", /Árbitro sorteado/);
   await shot("Ana", "13-confirmar");
   if (holder === "Ana") await text("Ana", /hará la prenda/);
-  await click("Ana", /Confirmar y seguir/);
+  check(await btn(holder, /Confirmar y seguir/).count() === 0, "el titular nunca confirma su propio reto");
+  const judge1 = await clickAny(/Confirmar y seguir/);
+  check(judge1 !== holder, "confirmó un árbitro sorteado distinto del titular (" + judge1 + ")");
 
   // 4. Turno 2: pase + rebote (reconexión de un jugador en medio)
   await text("Ana", /Reto 2 de 4/);
@@ -166,7 +179,7 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   check(await btn(targetName, /Usar un comodín/).count() === 0, "en un reto compartido ya no hay comodines");
   await shot(targetName, "15-reto-compartido");
   await click(targetName, /Cumplir el reto/);
-  await click("Ana", /Confirmar y seguir/);
+  await clickAny(/Confirmar y seguir/);
 
   // 5. Turno 3: retiro; pausa y reanudación
   await text("Ana", /Reto 3 de 4/);
@@ -177,13 +190,13 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await click("Ana", /Pausar la partida/);
   await text("Beto", /Partida en pausa/);
   await shot("Beto", "16-pausa");
-  check(await btn("Beto", /Reanudar/).count() === 0, "en pausa solo el anfitrión puede reanudar");
-  await click("Ana", /Reanudar/);
+  check((await btn("Beto", /Reanudar/).count()) === 1, "en pausa cualquiera puede reanudar");
+  await click("Beto", /Reanudar/);
   await pages.Beto.getByRole("alertdialog").waitFor({ state: "detached" });
   check(true, "pausa y reanudación sincronizadas");
   await click(h3, /Retirarme del reto/);
   await click(h3, /Sí, me retiro/);
-  await click("Ana", /Confirmar y seguir/);
+  await clickAny(/Confirmar y seguir/);
 
   // 6. Turno 4: cumplir pero el anfitrión marca que no lo cumplió → fin de ronda
   await text("Ana", /Reto 4 de 4/);
@@ -191,7 +204,7 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await afterReveal();
   let h4 = await holderOf();
   await click(h4, /Cumplir el reto/);
-  await click("Ana", /No lo cumplió/);
+  await clickAny(/No lo cumplió/);
   await text("Ana", /Ronda 1 terminada/);
   await shot("Ana", "17-resumen-ronda"); await noOverflow("Ana", "resumen");
   await text("Beto", /Se repartió un comodín nuevo/);
@@ -203,7 +216,7 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await text("Beto", /Cantar un tema de cumbia|Imitar a un pirata|Hablar en rima|Bailar sin música/);
   await shot("Beto", "18-historial");
   await pages.Beto.getByRole("button", { name: "Cerrar" }).click();
-  await click("Ana", /Empezar la ronda 2/);
+  await allReady(/Seguimos.*Ronda 2/);
   for (const n of NAMES) await pages[n].getByLabel("Escribí tu reto en privado").waitFor();
   check(true, "nueva ronda: se piden retos nuevos a todos");
   // reconexión desde otro celular (contexto nuevo, mismo nombre, tras >15 s sin conexión)
@@ -230,10 +243,12 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await pages.Ana.getByRole("switch", { name: /Sonidos/ }).click();
   check(await pages.Ana.evaluate(() => localStorage.getItem("retos:sound")) === "0", "los sonidos se pueden desactivar");
   await shot("Ana", "19-menu");
-  await click("Ana", /Finalizar la partida/); await click("Ana", /Sí, terminar/);
+  await pages.Ana.getByRole("switch", { name: /Votar para terminar/ }).click();   // el menú de Ana ya está abierto
+  await pages.Ana.getByRole("button", { name: "Cerrar" }).click();
+  for (const n of ["Beto", "Cami"]) { await click(n, /^Menú/); await pages[n].getByRole("switch", { name: /Votar para terminar/ }).click(); if (n === "Beto") await pages[n].getByRole("button", { name: "Cerrar" }).click(); }
   await text("Beto", /Así quedó la mesa/);
   await shot("Beto", "20-final");
-  check(true, "el anfitrión finaliza y todos ven el ranking");
+  check(true, "la partida termina por votación de la mayoría (3 de 4) y todos ven el ranking");
 
   await browser.close();
   const bad = results.filter((r) => !r[0]).length;

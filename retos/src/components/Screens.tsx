@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { FACTS } from "@/lib/facts";
 import { sfx } from "@/lib/sfx";
-import { LIMITS } from "@/lib/types";
+import { IDLE_MS, LIMITS } from "@/lib/types";
 import type { Action, RoomView, ViewPlayer, ViewTurn } from "@/lib/types";
 import { CardBack, Confetti, JOKER_INFO, JokerChip } from "./Cards";
 import { Icon } from "./Icon";
@@ -17,6 +17,15 @@ export interface Ctx {
   name: (id: string | null | undefined) => string;
 }
 const PLACEHOLDERS = ["Imitar a un profesor durante un minuto", "Hablar con acento extranjero hasta el próximo turno", "Dejar que otro escriba un mensaje desde tu celular", "Hacer 10 sentadillas cantando", "Contar tu papelón más grande"];
+
+/** ¿Pasaron IDLE_MS desde `since`? (según el reloj del servidor). Sin anfitrión, entonces cualquiera puede destrabar. */
+function useIdle(since: number, serverNow: number) {
+  const off = useMemo(() => Date.now() - serverNow, [since]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [, tick] = useState(0);
+  useEffect(() => { const i = setInterval(() => tick((t) => t + 1), 1000); return () => clearInterval(i); }, []);
+  const left = Math.max(0, Math.ceil((IDLE_MS - (Date.now() - off - since)) / 1000));
+  return { idle: left === 0, left };
+}
 
 function CountUp({ to }: { to: number }) {
   const { reduced } = useSettings();
@@ -37,7 +46,6 @@ function Pill({ p, extra, i = 0 }: { p: ViewPlayer; extra?: React.ReactNode; i?:
     <li className={`pill${p.connected ? "" : " is-off"}`} style={{ ["--i" as string]: i }}>
       <span className="pill-dot" aria-hidden="true" />
       <span className="pill-name">{p.name}</span>
-      {p.isHost && <span className="pill-badge"><Icon name="crown" size={13} />Anfitrión</span>}
       {!p.connected && <span className="pill-badge muted">sin conexión</span>}
       {extra}
     </li>
@@ -92,6 +100,7 @@ export function Lobby({ c }: { c: Ctx }) {
     } catch { /* cancelado */ }
   };
   const enough = view.players.length >= LIMITS.minPlayers;
+  const waiting = view.players.filter((p) => !p.ready);
   return (
     <section className="stack">
       <div className="panel center">
@@ -101,39 +110,29 @@ export function Lobby({ c }: { c: Ctx }) {
           <button className="btn btn-secondary" onClick={share}><Icon name="share" />Compartir enlace</button>
           <button className="btn btn-ghost" onClick={() => navigator.clipboard?.writeText(url).then(() => c.toast("Enlace copiado")).catch(() => {})}><Icon name="copy" />Copiar</button>
         </div>
-        {qr && view.me.isHost && <img className="qr" src={qr} width={140} height={140} alt={`Código QR para entrar a la sala ${view.code}`} />}
+        {qr && <details className="qr-box"><summary>Mostrar QR para que escaneen</summary><img className="qr" src={qr} width={140} height={140} alt={`Código QR para entrar a la sala ${view.code}`} /></details>}
       </div>
 
       <DidYouKnow />
 
       <div className="panel">
         <h2 className="h2">En la sala <span className="count">{view.players.length}/{LIMITS.maxPlayers}</span></h2>
-        <ul className="pills">{view.players.map((p, i) => <Pill key={p.id} p={p} i={i} extra={view.me.isHost && !p.isHost && (
-          <button className="pill-x" aria-label={`Sacar a ${p.name}`} onClick={() => send({ type: "kick", playerId: p.id })}><Icon name="x" size={14} /></button>)} />)}</ul>
+        <ul className="pills">{view.players.map((p, i) => <Pill key={p.id} p={p} i={i} extra={
+          <span className={`pill-badge ${p.ready ? "ok" : "muted"}`}>{p.ready ? <><Icon name="check" size={13} />listo</> : <><Icon name="clock" size={13} />pensando</>}</span>} />)}</ul>
+        <p className="muted small" style={{ marginBottom: 0 }}>Sin anfitrión: todos juegan y el azar decide. Al empezar se reparten 1 o 2 comodines al azar.</p>
       </div>
 
-      {view.me.isHost ? (
-        <div className="panel">
-          <h2 className="h2">Comodines al empezar</h2>
-          <p className="muted">Se reparten al azar entre todos, en total. Cada dueño ve los suyos en privado.</p>
-          <div className="seg" role="radiogroup" aria-label="Cantidad de comodines">
-            {[1, 2].map((n) => (
-              <button key={n} role="radio" aria-checked={view.startJokers === n} className={view.startJokers === n ? "on" : ""} disabled={busy}
-                onClick={() => send({ type: "setSettings", startJokers: n as 1 | 2 })}>{n === 1 ? "1 comodín" : "2 comodines"}</button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <p className="muted center">El anfitrión elige cuántos comodines se reparten.</p>
-      )}
-
-      <div className="dock">
-        {view.me.isHost ? (
+      <div className="dock stack-tight">
+        {!enough && <p className="hint">Faltan {LIMITS.minPlayers - view.players.length} para poder empezar (mínimo {LIMITS.minPlayers}).</p>}
+        {enough && view.me.ready && waiting.length > 0 && <p className="hint"><Icon name="clock" size={16} /> Arranca cuando todos estén listos. Faltan: {waiting.map((p) => p.name).join(", ")}</p>}
+        {!view.me.ready ? (
+          <button className="btn btn-primary btn-xl" disabled={busy} onClick={() => { sfx.ok(); void send({ type: "ready", ready: true }).then((e) => e && c.toast(e)); }}>¡Estoy listo!</button>
+        ) : (
           <>
-            {!enough && <p className="hint">Faltan {LIMITS.minPlayers - view.players.length} para poder empezar (mínimo {LIMITS.minPlayers}).</p>}
-            <button className="btn btn-primary btn-xl" disabled={!enough || busy} onClick={() => { sfx.ok(); void send({ type: "start" }).then((e) => e && c.toast(e)); }}>Empezar la partida</button>
+            {view.canStart && <button className="btn btn-primary btn-xl" disabled={busy} onClick={() => send({ type: "start" }).then((e) => e && c.toast(e))}>Empezar ya (sin esperar a los desconectados)</button>}
+            <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "ready", ready: false })}>Todavía no estoy listo</button>
           </>
-        ) : <p className="hint"><Icon name="clock" size={16} /> Esperando que {c.name(view.hostId)} empiece</p>}
+        )}
       </div>
     </section>
   );
@@ -147,6 +146,7 @@ export function Writing({ c }: { c: Ctx }) {
   const ph = useMemo(() => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)], []);
   const mine = view.me.myChallenge;
   const active = view.players.filter((p) => p.active);
+  const idleW = useIdle(view.phaseAt, view.serverNow);
   const submit = async () => {
     const e = await send({ type: "submitChallenge", text });
     if (e) c.toast(e); else { sfx.vote(); setEditing(false); }
@@ -173,8 +173,10 @@ export function Writing({ c }: { c: Ctx }) {
       <div className="panel">
         <h2 className="h2">Retos listos <span className="count">{view.writtenCount}/{view.activeCount}</span></h2>
         <ul className="pills">{active.map((p, i) => <Pill key={p.id} p={p} i={i} extra={<span className={`pill-badge ${p.written ? "ok" : "muted"}`}>{p.written ? <><Icon name="check" size={13} />listo</> : <><Icon name="clock" size={13} />escribiendo</>}</span>} />)}</ul>
-        {view.me.isHost && view.writtenCount >= 2 && view.writtenCount < view.activeCount && (
-          <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "forceVoting" }).then((e) => e && c.toast(e))}>Seguir sin esperar a los que faltan</button>
+        {view.me.active && view.writtenCount >= 2 && view.writtenCount < view.activeCount && (
+          <button className="btn btn-ghost" disabled={busy || !idleW.idle} onClick={() => send({ type: "forceVoting" }).then((e) => e && c.toast(e))}>
+            {idleW.idle ? "Seguir sin esperar a los que faltan" : `Seguir sin esperar (disponible en ${idleW.left} s)`}
+          </button>
         )}
       </div>
     </section>
@@ -188,6 +190,7 @@ export function Voting({ c, turn }: { c: Ctx; turn: ViewTurn }) {
   const voted = turn.myVote !== null;
   const canVote = view.me.active && !voted;
   const pending = view.players.filter((p) => p.active && !turn.voted.includes(p.id));
+  const idleV = useIdle(turn.stageAt, view.serverNow);
   return (
     <section className="stack">
       <div className="mystery panel center">
@@ -213,8 +216,8 @@ export function Voting({ c, turn }: { c: Ctx; turn: ViewTurn }) {
             {sel === null ? "Tocá una carta para votar" : `Votar la carta ${sel}`}
           </button>
         ) : null}
-        {view.me.isHost && pending.length > 0 && (
-          <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "closeVoting", turnKey: turn.key }).then((e) => e && c.toast(e))}>Cerrar la votación ya ({turn.voted.length} {turn.voted.length === 1 ? "voto" : "votos"})</button>
+        {view.me.active && pending.length > 0 && idleV.idle && (
+          <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "closeVoting", turnKey: turn.key }).then((e) => e && c.toast(e))}>Alguien no vota: cerrar con {turn.voted.length} {turn.voted.length === 1 ? "voto" : "votos"}</button>
         )}
       </div>
     </section>
@@ -229,7 +232,9 @@ export function Revealed({ c, turn }: { c: Ctx; turn: ViewTurn }) {
   const [target, setTarget] = useState<string | null>(null);
   const holder = turn.holderId!;
   const isHolder = holder === view.me.id;
-  const isHost = view.me.isHost;
+  const isJudge = turn.judgeId === view.me.id;
+  const isSubject = holder === view.me.id || (!!turn.shared && turn.partnerId === view.me.id);
+  const idleT = useIdle(turn.stageAt, view.serverNow);
   const opts = turn.options!;
   const run = async (a: Action, ok?: () => void) => { const e = await send(a); if (e) c.toast(e); else { ok?.(); setMode("menu"); } };
   useEffect(() => { setMode("menu"); setAlt(""); setTarget(null); }, [turn.key, turn.stage, holder]);
@@ -306,7 +311,7 @@ export function Revealed({ c, turn }: { c: Ctx; turn: ViewTurn }) {
         ) : (
           <div className="dock">
             <p className="hint"><Icon name="clock" size={16} /> Esperando que {c.name(holder)} decida{turn.altRejected && turn.altRejected.length > 0 ? " (rechazaron su última prenda)" : ""}</p>
-            {isHost && <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "hostSkip", turnKey: turn.key })}>No responde: registrar retiro</button>}
+            {!isSubject && view.me.active && idleT.idle && <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "skipHolder", turnKey: turn.key }).then((e) => e && c.toast(e))}>No responde: registrar retiro</button>}
           </div>
         )
       )}
@@ -327,8 +332,8 @@ export function Revealed({ c, turn }: { c: Ctx; turn: ViewTurn }) {
                 </div>
               ) : <p className="hint"><Icon name="check" size={16} /> Tu voto: {turn.alt.myVote ? "aceptaste" : "rechazaste"}. Esperando al resto.</p>
             ) : <p className="hint"><Icon name="clock" size={16} /> {isHolder ? "Esperando que voten tu prenda" : "No votás esta prenda"}</p>}
-            {isHost && <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "altClose", turnKey: turn.key }).then((e) => e && c.toast(e))}>Cerrar votación con los votos emitidos</button>}
-            {isHost && <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "hostSkip", turnKey: turn.key })}>No responde: registrar retiro</button>}
+            {!isSubject && view.me.active && idleT.idle && <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "altClose", turnKey: turn.key }).then((e) => e && c.toast(e))}>Faltan votos: cerrar con los emitidos</button>}
+            {!isSubject && view.me.active && idleT.idle && <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "skipHolder", turnKey: turn.key }).then((e) => e && c.toast(e))}>No responde: registrar retiro</button>}
           </div>
         </div>
       )}
@@ -336,12 +341,14 @@ export function Revealed({ c, turn }: { c: Ctx; turn: ViewTurn }) {
       {turn.stage === "confirming" && (
         <div className="dock stack-tight">
           <p className="status-line"><Icon name="flag" size={16} /> {resText}</p>
-          {isHost ? (
+          <p className="muted small center" style={{ margin: 0 }}><Icon name="star" size={14} /> Árbitro sorteado para este turno: <strong>{c.name(turn.judgeId)}</strong>{isJudge ? " (vos)" : ""}</p>
+          {isJudge || (!isSubject && view.me.active && idleT.idle) ? (
             <>
               <button className="btn btn-primary btn-xl" disabled={busy} onClick={() => run({ type: "confirm", turnKey: turn.key, outcome: "ok" }, () => sfx.ok())}>Confirmar y seguir</button>
               {res?.kind !== "withdraw" && <button className="btn btn-ghost" disabled={busy} onClick={() => run({ type: "confirm", turnKey: turn.key, outcome: "fail" })}>No lo cumplió: registrar retiro</button>}
+              {!isJudge && <p className="hint" style={{ fontSize: "0.85rem" }}>El árbitro no respondió: podés confirmar vos.</p>}
             </>
-          ) : <p className="hint"><Icon name="clock" size={16} /> Esperando que {c.name(view.hostId)} confirme cómo se resolvió</p>}
+          ) : <p className="hint"><Icon name="clock" size={16} /> Esperando que {c.name(turn.judgeId)} (árbitro sorteado) confirme cómo se resolvió</p>}
         </div>
       )}
     </section>
@@ -364,9 +371,19 @@ export function Summary({ c }: { c: Ctx }) {
         <p className="muted small">Cuentan los retos cumplidos y las prendas alternativas cumplidas. Los retiros se anotan aparte.</p>
       </div>
       {s.jokerGranted && <div className="panel joker-note"><Icon name="star" /> Se repartió un comodín nuevo al azar. Si te tocó, lo ves en tu inventario.</div>}
-      <div className="dock">
-        {view.me.isHost ? <button className="btn btn-primary btn-xl" disabled={busy} onClick={() => send({ type: "nextRound" }).then((e) => e && c.toast(e))}>Empezar la ronda {s.round + 1}</button>
-          : <p className="hint"><Icon name="clock" size={16} /> Esperando que {c.name(view.hostId)} empiece la ronda {s.round + 1}</p>}
+      <div className="panel">
+        <h2 className="h2">¿Seguimos? <span className="count">{view.readyCount}/{view.players.length}</span></h2>
+        <ul className="pills">{view.players.map((p, i) => <Pill key={p.id} p={p} i={i} extra={<span className={`pill-badge ${p.ready ? "ok" : "muted"}`}>{p.ready ? <><Icon name="check" size={13} />listo</> : <><Icon name="clock" size={13} />pensando</>}</span>} />)}</ul>
+      </div>
+      <div className="dock stack-tight">
+        {!view.me.ready ? (
+          <button className="btn btn-primary btn-xl" disabled={busy} onClick={() => { sfx.ok(); void send({ type: "ready", ready: true }).then((e) => e && c.toast(e)); }}>¡Seguimos! Ronda {s.round + 1}</button>
+        ) : (
+          <>
+            <p className="hint"><Icon name="clock" size={16} /> La ronda {s.round + 1} arranca cuando todos estén listos</p>
+            {view.canStart && <button className="btn btn-primary btn-xl" disabled={busy} onClick={() => send({ type: "start" }).then((e) => e && c.toast(e))}>Empezar ya (sin esperar a los desconectados)</button>}
+          </>
+        )}
       </div>
     </section>
   );

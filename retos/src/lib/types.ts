@@ -5,12 +5,15 @@ export type Phase = "lobby" | "writing" | "turn" | "summary" | "ended";
 export type Stage = "voting" | "choosing" | "altVoting" | "confirming";
 export type ResolutionKind = "done" | "alt" | "withdraw";
 
+export const IDLE_MS = 45000; // tras este tiempo sin respuesta, cualquiera puede destrabar
+export const PRESENCE_MS = 15000;
+
 export interface ViewPlayer {
   id: string;
   name: string;
-  isHost: boolean;
   connected: boolean;
   active: boolean;
+  ready: boolean;
   written: boolean;
   done: number;
   alt: number;
@@ -22,6 +25,7 @@ export interface ViewTurn {
   key: string;
   n: number;
   stage: Stage;
+  stageAt: number;
   cardCount: number;
   voted: string[];
   myVote: number | null;
@@ -37,6 +41,7 @@ export interface ViewTurn {
   chain?: string[];
   shared?: boolean;
   partnerId?: string | null;
+  judgeId?: string | null;
   alt?: { text: string; proposerId: string; voted: string[]; eligible: string[]; myVote: boolean | null } | null;
   altRejected?: string[];
   resolution?: { kind: ResolutionKind; text?: string } | null;
@@ -69,23 +74,27 @@ export interface RoomView {
   version: number;
   serverNow: number;
   phase: Phase;
+  phaseAt: number;
   paused: boolean;
+  pausedBy: string | null;
   round: number;
   roundSize: number;
   resolved: number;
-  startJokers: 1 | 2;
-  hostId: string;
   me: {
     id: string;
     name: string;
-    isHost: boolean;
     active: boolean;
+    ready: boolean;
+    endVote: boolean;
     jokers: { id: string; type: JokerType }[];
     myChallenge: string | null;
   };
   players: ViewPlayer[];
   writtenCount: number;
   activeCount: number;
+  readyCount: number;
+  canStart: boolean;
+  endVotes: number;
   turn: ViewTurn | null;
   history: HistoryEntry[];
   summary: { round: number; rows: SummaryRow[]; turns: number; jokerGranted: boolean } | null;
@@ -93,7 +102,7 @@ export interface RoomView {
 }
 
 export type Action =
-  | { type: "setSettings"; startJokers: 1 | 2 }
+  | { type: "ready"; ready: boolean }
   | { type: "start" }
   | { type: "submitChallenge"; text: string }
   | { type: "forceVoting" }
@@ -106,11 +115,10 @@ export type Action =
   | { type: "altClose"; turnKey: string }
   | { type: "useJoker"; turnKey: string; joker: JokerType; target?: string }
   | { type: "confirm"; turnKey: string; outcome: "ok" | "fail" }
-  | { type: "hostSkip"; turnKey: string }
-  | { type: "nextRound" }
+  | { type: "skipHolder"; turnKey: string }
   | { type: "pause" }
   | { type: "resume" }
-  | { type: "end" }
-  | { type: "kick"; playerId: string };
+  | { type: "voteEnd"; on: boolean }
+  | { type: "leave" };
 
 export const LIMITS = { name: 20, challenge: 140, alt: 140, maxPlayers: 15, minPlayers: 3 } as const;

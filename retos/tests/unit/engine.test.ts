@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { GameError, addPlayer, applyAction, cleanText, createRoom, getPlayer, reclaimPlayer, tokenMatches } from "../../src/lib/engine";
+import { GameError, addPlayer, applyAction, canProceed, cleanText, createRoom, getPlayer, reclaimPlayer, tokenMatches } from "../../src/lib/engine";
 import type { Rng, Room } from "../../src/lib/engine";
 import { buildView } from "../../src/lib/view";
+import { IDLE_MS } from "../../src/lib/types";
 import type { Action } from "../../src/lib/types";
 
 function seeded(seed: number): Rng {
@@ -11,33 +12,67 @@ function seeded(seed: number): Rng {
 }
 const rng = seeded(7);
 const NOW = 1_000_000;
-const act = (r: Room, who: string, a: Action) => applyAction(r, who, a, NOW, rng);
+const LATE = NOW + IDLE_MS + 1000;
+const act = (r: Room, who: string, a: Action, now = NOW, conn?: (id: string) => boolean) => applyAction(r, who, a, now, rng, conn);
 const throwsCode = (fn: () => void, code: string) => assert.throws(fn, (e: unknown) => e instanceof GameError && e.code === code);
 
-function setup(names = ["Ana", "Beto", "Cami", "Dani"], startJokers: 1 | 2 = 2) {
-  const { room, playerId: host } = createRoom(names[0], NOW, "BCDF", rng);
-  const ids = [host, ...names.slice(1).map((n) => addPlayer(room, n, NOW).playerId)];
-  act(room, host, { type: "setSettings", startJokers });
-  act(room, host, { type: "start" });
+/** Sala sin anfitrión: todos "listos" => arranca sola; todos escriben un reto. */
+function setup(names = ["Ana", "Beto", "Cami", "Dani"]) {
+  const { room, playerId: first } = createRoom(names[0], NOW, "BCDF");
+  const ids = [first, ...names.slice(1).map((n) => addPlayer(room, n, NOW).playerId)];
+  ids.forEach((id) => act(room, id, { type: "ready", ready: true }));
   ids.forEach((id, i) => act(room, id, { type: "submitChallenge", text: `Reto numero ${i + 1}` }));
-  return { room, ids, host };
+  return { room, ids };
 }
 const turn = (r: Room) => r.turn!;
+const byId = (r: Room, id: string) => getPlayer(r, id)!;
 function everyoneVotes(r: Room, ids: string[], card: (i: number) => number) {
   ids.forEach((id, i) => act(r, id, { type: "vote", turnKey: turn(r).key, card: card(i) }));
 }
-const byId = (r: Room, id: string) => getPlayer(r, id)!;
+/** Confirma el turno como lo haría el árbitro sorteado. */
+const judgeConfirms = (r: Room, outcome: "ok" | "fail" = "ok") => act(r, turn(r).judgeId!, { type: "confirm", turnKey: turn(r).key, outcome });
 
-test("inicio: reparte comodines según la configuración y exige 3 jugadores", () => {
-  const { room: r0, playerId } = createRoom("Solo", NOW, "BCDG", rng);
-  addPlayer(r0, "Otro", NOW);
-  throwsCode(() => act(r0, playerId, { type: "start" }), "few_players");
-  const { room } = setup(["A", "B", "C", "D", "E"], 2);
-  assert.equal(room.players.reduce((n, p) => n + p.jokers.length, 0), 2);
+test("empezar: todos listos (mín. 3), sin anfitrión; reparte 1 o 2 comodines al azar", () => {
+  const { room: r0, playerId } = createRoom("Solo", NOW, "BCDG");
+  const b = addPlayer(r0, "Otro", NOW).playerId;
+  act(r0, playerId, { type: "ready", ready: true }); act(r0, b, { type: "ready", ready: true });
+  assert.equal(r0.phase, "lobby", "con 2 listos no arranca");
+  throwsCode(() => act(r0, playerId, { type: "start" }), "not_all_ready");
+  const seen = new Set<number>();
+  for (let s = 0; s < 30; s++) {
+    const room = createRoom("A", NOW, "BCDH").room;
+    const ids = [room.players[0].id, addPlayer(room, "B", NOW).playerId, addPlayer(room, "C", NOW).playerId];
+    ids.forEach((id) => applyAction(room, id, { type: "ready", ready: true }, NOW, seeded(s)));
+    assert.equal(room.phase, "writing");
+    seen.add(room.players.reduce((n, p) => n + p.jokers.length, 0));
+  }
+  assert.deepEqual([...seen].sort(), [1, 2], "siempre 1 o 2 comodines, sorteado");
+  const { room } = setup(["A", "B", "C", "D", "E"]);
   assert.equal(room.phase, "turn");
   assert.equal(room.roundSize, 5);
-  assert.equal(turn(room).cards.length, 5);
   assert.equal(new Set(turn(room).cards).size, 5, "cada carta tiene un nombre distinto");
+});
+
+test("quien crea la sala no tiene privilegios y puede elegir no estar listo", () => {
+  const { room, playerId } = createRoom("Creador", NOW, "BCDJ");
+  const b = addPlayer(room, "B", NOW).playerId, c = addPlayer(room, "C", NOW).playerId;
+  act(room, b, { type: "ready", ready: true }); act(room, c, { type: "ready", ready: true });
+  assert.equal(room.phase, "lobby", "el creador también tiene que estar listo");
+  act(room, playerId, { type: "ready", ready: true });
+  assert.equal(room.phase, "writing");
+  assert.ok(!("hostId" in room), "el modelo no tiene anfitrión");
+});
+
+test("jugador sin conexión y sin estar listo no frena el inicio: espera a la próxima ronda", () => {
+  const { room, playerId } = createRoom("A", NOW, "BCDK");
+  const b = addPlayer(room, "B", NOW).playerId, c = addPlayer(room, "C", NOW).playerId, d = addPlayer(room, "D", NOW).playerId;
+  const conn = (id: string) => id !== d;
+  [playerId, b].forEach((id) => act(room, id, { type: "ready", ready: true }, NOW, conn));
+  assert.equal(room.phase, "lobby");
+  assert.equal(canProceed(room, conn), false);
+  act(room, c, { type: "ready", ready: true }, NOW, conn);
+  assert.equal(room.phase, "writing", "arranca con los 3 listos conectados");
+  assert.equal(byId(room, d).active, false, "el ausente queda como espectador");
 });
 
 test("votos: uno por persona, sin duplicados, clave vieja rechazada", () => {
@@ -47,16 +82,14 @@ test("votos: uno por persona, sin duplicados, clave vieja rechazada", () => {
   throwsCode(() => act(room, ids[0], { type: "vote", turnKey: key, card: 3 }), "already_voted");
   throwsCode(() => act(room, ids[1], { type: "vote", turnKey: key, card: 9 }), "bad_input");
   throwsCode(() => act(room, ids[1], { type: "vote", turnKey: "0-0", card: 1 }), "stale");
-  throwsCode(() => act(room, ids[1], { type: "closeVoting", turnKey: key }), "host_only");
 });
 
 test("mayoría gana; empate se sortea entre las cartas empatadas", () => {
   const a = setup();
-  everyoneVotes(a.room, a.ids, (i) => (i < 3 ? 2 : 4)); // 2 votos a la carta 2... 3 a la 2 y 1 a la 4
+  everyoneVotes(a.room, a.ids, (i) => (i < 3 ? 2 : 4));
   assert.equal(turn(a.room).winnerCard, 2);
   assert.equal(turn(a.room).stage, "choosing");
   assert.equal(turn(a.room).holderId, turn(a.room).cards[1]);
-
   const seen = new Set<number>();
   for (let s = 0; s < 40; s++) {
     const g = setup();
@@ -71,18 +104,19 @@ test("mayoría gana; empate se sortea entre las cartas empatadas", () => {
   assert.equal(seen.size, 2, "ambas cartas empatadas pueden ganar");
 });
 
-test("el anfitrión puede cerrar la votación con votos parciales o sin votos", () => {
-  const { room, ids, host } = setup();
+test("si alguien no vota, cualquiera puede cerrar la votación pasado el tiempo (antes no)", () => {
+  const { room, ids } = setup();
   act(room, ids[1], { type: "vote", turnKey: turn(room).key, card: 4 });
-  act(room, host, { type: "closeVoting", turnKey: turn(room).key });
+  throwsCode(() => act(room, ids[2], { type: "closeVoting", turnKey: turn(room).key }), "too_early");
+  act(room, ids[2], { type: "closeVoting", turnKey: turn(room).key }, LATE);
   assert.equal(turn(room).winnerCard, 4);
   const b = setup();
-  act(b.room, b.host, { type: "closeVoting", turnKey: turn(b.room).key });
-  assert.equal(turn(b.room).tied!.length, 4);
+  act(b.room, b.ids[3], { type: "closeVoting", turnKey: turn(b.room).key }, LATE);
+  assert.equal(turn(b.room).tied!.length, 4, "sin votos: sorteo entre todas");
 });
 
-test("cumplir -> confirma el anfitrión -> siguiente turno; solo el titular elige", () => {
-  const { room, ids, host } = setup();
+test("cumplir -> confirma SOLO el árbitro sorteado (no el titular); doble toque rechazado", () => {
+  const { room, ids } = setup();
   everyoneVotes(room, ids, () => 1);
   const t = turn(room);
   const holder = t.holderId!;
@@ -90,37 +124,50 @@ test("cumplir -> confirma el anfitrión -> siguiente turno; solo el titular elig
   throwsCode(() => act(room, other, { type: "fulfill", turnKey: t.key }), "not_your_turn");
   act(room, holder, { type: "fulfill", turnKey: t.key });
   assert.equal(turn(room).stage, "confirming");
-  throwsCode(() => act(room, holder === host ? other : holder, { type: "confirm", turnKey: t.key, outcome: "ok" }), "host_only");
-  act(room, host, { type: "confirm", turnKey: t.key, outcome: "ok" });
+  assert.ok(turn(room).judgeId && turn(room).judgeId !== holder, "el árbitro es otra persona");
+  throwsCode(() => act(room, holder, { type: "confirm", turnKey: t.key, outcome: "ok" }, LATE), "not_judge");
+  const notJudge = ids.find((i) => i !== holder && i !== turn(room).judgeId)!;
+  throwsCode(() => act(room, notJudge, { type: "confirm", turnKey: t.key, outcome: "ok" }), "not_judge");
+  judgeConfirms(room);
   assert.equal(byId(room, holder).total.done, 1);
   assert.equal(turn(room).n, 2);
-  throwsCode(() => act(room, host, { type: "confirm", turnKey: t.key, outcome: "ok" }), "stale"); // doble toque
+  throwsCode(() => act(room, ids[0], { type: "confirm", turnKey: t.key, outcome: "ok" }), "stale");
 });
 
-test("pase: no se puede volver a pasar a quien ya recibió; el receptor puede rebotar y queda compartido", () => {
-  const { room, ids, host } = setup(["A", "B", "C", "D"], 1);
+test("el árbitro que no responde: otro jugador (no titular) puede confirmar pasado el tiempo", () => {
+  const { room, ids } = setup();
+  everyoneVotes(room, ids, () => 1);
+  const t = turn(room);
+  act(room, t.holderId!, { type: "fulfill", turnKey: t.key });
+  const backup = ids.find((i) => i !== t.holderId && i !== turn(room).judgeId)!;
+  act(room, backup, { type: "confirm", turnKey: t.key, outcome: "ok" }, LATE);
+  assert.equal(byId(room, t.holderId!).total.done, 1);
+});
+
+test("pase: no se puede volver a pasar a quien ya recibió; rebote deja el reto compartido (árbitro ajeno)", () => {
+  const { room, ids } = setup(["A", "B", "C", "D"]);
   everyoneVotes(room, ids, () => 1);
   const t = turn(room);
   const [h, x, y] = [t.holderId!, ...ids.filter((i) => i !== t.holderId)];
   byId(room, h).jokers = [{ id: "j1", type: "pass" }, { id: "j2", type: "pass" }];
   byId(room, x).jokers = [{ id: "j3", type: "bounce" }, { id: "j4", type: "pass" }];
+  byId(room, y).jokers = [];
   throwsCode(() => act(room, h, { type: "useJoker", turnKey: t.key, joker: "pass", target: h }), "already_received");
   act(room, h, { type: "useJoker", turnKey: t.key, joker: "pass", target: x });
   assert.equal(turn(room).holderId, x);
-  assert.equal(byId(room, h).jokers.length, 1, "se consumió un comodín");
+  assert.equal(byId(room, h).jokers.length, 1);
   throwsCode(() => act(room, h, { type: "fulfill", turnKey: t.key }), "not_your_turn");
-  // x pasa a y; y no puede volver a pasárselo a x ni a h
   act(room, x, { type: "useJoker", turnKey: t.key, joker: "pass", target: y });
   throwsCode(() => act(room, y, { type: "useJoker", turnKey: t.key, joker: "pass", target: x }), "no_joker");
   byId(room, y).jokers = [{ id: "j9", type: "pass" }, { id: "j8", type: "bounce" }];
   throwsCode(() => act(room, y, { type: "useJoker", turnKey: t.key, joker: "pass", target: h }), "already_received");
-  // y rebota -> compartido con x, sin más comodines
   act(room, y, { type: "useJoker", turnKey: t.key, joker: "bounce" });
   assert.equal(turn(room).shared, true);
   assert.equal(turn(room).partnerId, x);
   throwsCode(() => act(room, y, { type: "useJoker", turnKey: t.key, joker: "pass", target: ids.find((i) => ![h, x, y].includes(i))! }), "shared");
   act(room, y, { type: "fulfill", turnKey: t.key });
-  act(room, host, { type: "confirm", turnKey: t.key, outcome: "ok" });
+  assert.ok(![y, x].includes(turn(room).judgeId!), "el árbitro no es parte del reto compartido");
+  judgeConfirms(room);
   assert.equal(byId(room, y).total.done, 1);
   assert.equal(byId(room, x).total.done, 1, "el reto compartido cuenta para ambos");
 });
@@ -134,7 +181,7 @@ test("rebote sin que te hayan pasado el reto no está permitido", () => {
 });
 
 test("prenda alternativa: unanimidad, rechazo vuelve a elegir, aceptada cuenta como alternativa", () => {
-  const { room, ids, host } = setup(["A", "B", "C", "D"]);
+  const { room, ids } = setup(["A", "B", "C", "D"]);
   everyoneVotes(room, ids, () => 2);
   const t = turn(room);
   const h = t.holderId!;
@@ -150,79 +197,92 @@ test("prenda alternativa: unanimidad, rechazo vuelve a elegir, aceptada cuenta c
   voters.forEach((v) => act(room, v, { type: "altVote", turnKey: t.key, accept: true }));
   assert.equal(turn(room).stage, "confirming");
   assert.equal(turn(room).resolution?.kind, "alt");
-  act(room, host, { type: "confirm", turnKey: t.key, outcome: "ok" });
+  judgeConfirms(room);
   assert.equal(byId(room, h).total.alt, 1);
   assert.equal(byId(room, h).total.done, 0);
 });
 
-test("retiro y 'no lo cumplió' se registran aparte de lo cumplido", () => {
-  const { room, ids, host } = setup();
+test("retiro y 'no lo cumplió' (árbitro) se registran aparte de lo cumplido", () => {
+  const { room, ids } = setup();
   everyoneVotes(room, ids, () => 1);
   let t = turn(room);
   act(room, t.holderId!, { type: "withdraw", turnKey: t.key });
-  act(room, host, { type: "confirm", turnKey: t.key, outcome: "ok" });
+  judgeConfirms(room);
   assert.equal(byId(room, t.holderId!).total.withdrawn, 1);
   everyoneVotes(room, ids, () => 1);
   t = turn(room);
   const h2 = t.holderId!;
   act(room, h2, { type: "fulfill", turnKey: t.key });
-  act(room, host, { type: "confirm", turnKey: t.key, outcome: "fail" });
+  judgeConfirms(room, "fail");
   assert.equal(byId(room, h2).total.done, 0);
   assert.ok(byId(room, h2).total.withdrawn >= 1);
 });
 
-test("ronda completa: N turnos, comodín nuevo privado, resumen, nueva ronda con nuevos retos", () => {
-  const { room, ids, host } = setup(["A", "B", "C"], 1);
+test("ronda completa: N turnos, comodín nuevo, resumen; todos 'seguimos' => nueva ronda con retos nuevos", () => {
+  const { room, ids } = setup(["A", "B", "C"]);
   const before = room.players.reduce((n, p) => n + p.jokers.length, 0);
   for (let i = 0; i < 3; i++) {
     everyoneVotes(room, ids, (k) => ((k + i) % 3) + 1);
     const t = turn(room);
     act(room, t.holderId!, { type: "fulfill", turnKey: t.key });
-    act(room, host, { type: "confirm", turnKey: t.key, outcome: "ok" });
+    judgeConfirms(room);
   }
   assert.equal(room.phase, "summary");
   assert.equal(room.pool.length, 0, "cada reto usado se retira");
   assert.equal(room.summary!.turns, 3);
   assert.equal(room.players.reduce((n, p) => n + p.jokers.length, 0), before + 1);
   assert.equal(room.summary!.rows.reduce((n, r) => n + r.done, 0), 3);
-  throwsCode(() => act(room, ids[1], { type: "nextRound" }), "host_only");
-  act(room, host, { type: "nextRound" });
+  act(room, ids[0], { type: "ready", ready: true }); act(room, ids[1], { type: "ready", ready: true });
+  assert.equal(room.phase, "summary", "falta uno");
+  act(room, ids[2], { type: "ready", ready: true });
   assert.equal(room.phase, "writing");
   assert.equal(room.round, 2);
-  assert.ok(room.players.every((p) => p.challenge === null && p.round.done === 0));
+  assert.ok(room.players.every((p) => p.challenge === null && p.round.done === 0 && !p.ready));
   ids.forEach((id, i) => act(room, id, { type: "submitChallenge", text: `Segunda ronda ${i}` }));
   assert.equal(room.phase, "turn");
   assert.equal(turn(room).key, "2-1");
 });
 
 test("una misma persona puede salir más de una vez en la ronda (selección aleatoria)", () => {
-  const { room, ids, host } = setup(["A", "B", "C"], 1);
+  const { room, ids } = setup(["A", "B", "C"]);
   const holders: string[] = [];
   for (let i = 0; i < 3; i++) {
     const t = turn(room);
-    const target = t.cards.indexOf(ids[0]) + 1; // todos votan la carta donde está A
+    const target = t.cards.indexOf(ids[0]) + 1;
     ids.forEach((id) => act(room, id, { type: "vote", turnKey: t.key, card: target }));
     holders.push(turn(room).holderId!);
     act(room, ids[0], { type: "fulfill", turnKey: t.key });
-    act(room, host, { type: "confirm", turnKey: t.key, outcome: "ok" });
+    judgeConfirms(room);
   }
   assert.deepEqual(holders, [ids[0], ids[0], ids[0]]);
 });
 
-test("pausa bloquea acciones; finalizar muestra el ranking", () => {
-  const { room, ids, host } = setup();
-  act(room, host, { type: "pause" });
+test("cualquiera pausa y reanuda; terminar se vota por mayoría; irse de la sala", () => {
+  const { room, ids } = setup(["A", "B", "C", "D"]);
+  act(room, ids[2], { type: "pause" });
+  assert.equal(room.paused, true);
   throwsCode(() => act(room, ids[1], { type: "vote", turnKey: turn(room).key, card: 1 }), "paused");
-  throwsCode(() => act(room, ids[1], { type: "resume" }), "host_only");
-  act(room, host, { type: "resume" });
+  act(room, ids[1], { type: "resume" });
   act(room, ids[1], { type: "vote", turnKey: turn(room).key, card: 1 });
-  act(room, host, { type: "end" });
+  act(room, ids[0], { type: "voteEnd", on: true });
+  act(room, ids[1], { type: "voteEnd", on: true });
+  assert.equal(room.phase, "turn", "2 de 4 no es mayoría");
+  act(room, ids[2], { type: "voteEnd", on: true });
   assert.equal(room.phase, "ended");
-  assert.ok(buildView(room, host, NOW, {}, 1).final);
+  assert.ok(buildView(room, ids[0], NOW, {}, 1).final);
   throwsCode(() => act(room, ids[1], { type: "vote", turnKey: "1-1", card: 1 }), "ended");
+  // irse en el lobby
+  const { room: r2, playerId } = createRoom("X", NOW, "BCDL");
+  const y = addPlayer(r2, "Y", NOW).playerId;
+  act(r2, y, { type: "leave" });
+  assert.equal(r2.players.length, 1);
+  assert.equal(playerId, r2.players[0].id);
+  // no se puede irse en medio de un turno
+  const s = setup(["A", "B", "C"]);
+  throwsCode(() => act(s.room, s.ids[0], { type: "leave" }), "wrong_phase");
 });
 
-test("secretos: la vista no filtra autoría, reto en curso, cartas->nombre, votos ni comodines ajenos", () => {
+test("secretos: la vista no filtra autoría, reto en curso, cartas->nombre, votos ni comodines ajenos; no hay anfitrión", () => {
   const { room, ids } = setup(["A", "B", "C", "D"]);
   act(room, ids[0], { type: "vote", turnKey: turn(room).key, card: 3 });
   room.players[1].jokers = [{ id: "secretoj", type: "pass" }];
@@ -230,29 +290,26 @@ test("secretos: la vista no filtra autoría, reto en curso, cartas->nombre, voto
   const s = JSON.stringify(spy);
   assert.ok(!s.includes(turn(room).challengeText), "el reto no se envía antes de revelar");
   assert.ok(!s.includes("authorId") && !s.includes("tokenHash") && !s.includes("secretoj"));
-  assert.ok(!s.includes('"cards"'), "no hay mapa carta->jugador");
+  assert.ok(!s.includes('"cards"') && !s.includes("hostId") && !s.includes("isHost"));
   assert.equal(spy.turn!.myVote, null);
   assert.deepEqual(spy.turn!.voted, [ids[0]]);
-  assert.equal(JSON.stringify(spy.players).includes('"card"'), false);
   assert.equal(buildView(room, ids[0], NOW, {}, 1).turn!.myVote, 3, "cada uno ve su propio voto");
-  // tras revelar, el reto sí; pero nunca quién lo escribió
   ids.slice(1).forEach((id) => act(room, id, { type: "vote", turnKey: turn(room).key, card: 3 }));
   const after = JSON.stringify(buildView(room, ids[2], NOW, {}, 2));
   assert.ok(after.includes(turn(room).challengeText));
   assert.ok(!after.includes("authorId"));
-  assert.equal(buildView(room, ids[2], NOW, {}, 2).turn!.options!.passTargets.length >= 0, true);
 });
 
 test("textos: se limpian caracteres de control, bidi e invisibles; React escapa el resto", () => {
   assert.equal(cleanText("  hola‮  \n\t mundo\u0000 ", 50), "hola mundo");
   assert.equal(cleanText("x".repeat(500), 140).length, 140);
   assert.equal(cleanText(42, 10), "");
-  const { room } = createRoom("<img src=x onerror=alert(1)>", NOW, "BCDH", rng);
+  const { room } = createRoom("<img src=x onerror=alert(1)>", NOW, "BCDH");
   assert.equal(room.players[0].name, "<img src=x onerror=alert(1)>".slice(0, 20), "se guarda como texto; la UI nunca usa innerHTML");
 });
 
 test("nombres únicos y reconexión: el token correcto identifica, el viejo deja de servir al reclamar", () => {
-  const { room, token, playerId } = createRoom("Ana", NOW, "BCDJ", rng);
+  const { room, token, playerId } = createRoom("Ana", NOW, "BCDJ");
   throwsCode(() => addPlayer(room, "ana", NOW), "name_taken");
   assert.ok(tokenMatches(getPlayer(room, playerId)!, token));
   const r = reclaimPlayer(room, "Ana")!;
@@ -261,33 +318,48 @@ test("nombres únicos y reconexión: el token correcto identifica, el viejo deja
   assert.ok(tokenMatches(getPlayer(room, playerId)!, r.token));
 });
 
-test("saltear al titular ausente y cerrar votación de prenda por el anfitrión", () => {
-  const { room, ids, host } = setup();
+test("titular que no responde: otro jugador lo registra como retiro pasado el tiempo; el titular no puede saltearse", () => {
+  const { room, ids } = setup();
   everyoneVotes(room, ids, () => 1);
-  let t = turn(room);
-  act(room, host, { type: "hostSkip", turnKey: t.key });
+  const t = turn(room);
+  const other = ids.find((i) => i !== t.holderId)!;
+  throwsCode(() => act(room, other, { type: "skipHolder", turnKey: t.key }), "too_early");
+  throwsCode(() => act(room, t.holderId!, { type: "skipHolder", turnKey: t.key }, LATE), "not_allowed");
+  act(room, other, { type: "skipHolder", turnKey: t.key }, LATE);
   assert.equal(turn(room).resolution?.kind, "withdraw");
-  act(room, host, { type: "confirm", turnKey: t.key, outcome: "ok" });
+  judgeConfirms(room);
   everyoneVotes(room, ids, () => 1);
-  t = turn(room);
-  act(room, t.holderId!, { type: "propose", turnKey: t.key, text: "Hacer un brindis" });
-  const v = ids.find((i) => i !== t.holderId)!;
-  act(room, v, { type: "altVote", turnKey: t.key, accept: true });
-  act(room, host, { type: "altClose", turnKey: t.key });
+  const t2 = turn(room);
+  act(room, t2.holderId!, { type: "propose", turnKey: t2.key, text: "Hacer un brindis" });
+  const v = ids.find((i) => i !== t2.holderId)!;
+  act(room, v, { type: "altVote", turnKey: t2.key, accept: true });
+  throwsCode(() => act(room, v, { type: "altClose", turnKey: t2.key }), "too_early");
+  act(room, v, { type: "altClose", turnKey: t2.key }, LATE);
   assert.equal(turn(room).stage, "confirming");
 });
 
+test("sin retos de alguien: cualquiera sigue pasado el tiempo (mínimo 2 retos)", () => {
+  const { room, playerId } = createRoom("A", NOW, "BCDM");
+  const b = addPlayer(room, "B", NOW).playerId, c = addPlayer(room, "C", NOW).playerId;
+  [playerId, b, c].forEach((id) => act(room, id, { type: "ready", ready: true }));
+  act(room, playerId, { type: "submitChallenge", text: "Primer reto" });
+  throwsCode(() => act(room, c, { type: "forceVoting" }, LATE), "few_challenges");
+  act(room, b, { type: "submitChallenge", text: "Segundo reto" });
+  throwsCode(() => act(room, c, { type: "forceVoting" }), "too_early");
+  act(room, c, { type: "forceVoting" }, LATE);
+  assert.equal(room.phase, "turn");
+  assert.equal(room.roundSize, 2);
+});
+
 test("límite de 15 jugadores por sala", () => {
-  const { room } = createRoom("J1", NOW, "BCDK", rng);
+  const { room } = createRoom("J1", NOW, "BCDK");
   for (let i = 2; i <= 15; i++) addPlayer(room, `J${i}`, NOW);
   assert.equal(room.players.length, 15);
   throwsCode(() => addPlayer(room, "J16", NOW), "full");
-  assert.equal(room.players.length, 15);
 });
 
 test("con 15 jugadores la ronda reparte 15 cartas y 15 retos", () => {
-  const names = Array.from({ length: 15 }, (_, i) => `P${i + 1}`);
-  const { room, ids } = setup(names, 2);
+  const { room, ids } = setup(Array.from({ length: 15 }, (_, i) => `P${i + 1}`));
   assert.equal(room.roundSize, 15);
   assert.equal(turn(room).cards.length, 15);
   assert.equal(new Set(turn(room).cards).size, 15);
