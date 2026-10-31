@@ -9,8 +9,9 @@ import { Mascot } from "@/components/Mascot";
 const STEPS = [
   ["Armá la sala", "Cualquiera la crea y comparte el código o el enlace. No hay anfitrión: todos juegan y el azar decide."],
   ["Escribí un reto", "Cada uno escribe uno en privado. Nadie sabe quién escribió cuál."],
-  ["Votá una carta", "Hay una carta boca abajo por jugador. Todos votan sin saber quién está detrás."],
-  ["Mirá la revelación", "Se da vuelta la carta: aparece el nombre y el reto. Cumplir, cambiar la prenda, comodín o retirarse."],
+  ["Votá a quién le toca", "Hay una carta boca abajo por jugador. Todos votan sin saber quién está detrás."],
+  ["Votá qué reto le toca", "Cartas de reto boca abajo: los demás eligen el reto de esa persona. Nunca le sale uno que escribió ella."],
+  ["Mirá las revelaciones", "Se da vuelta la carta: aparece el nombre, y después el reto. Cumplir, cambiar la prenda, comodín o retirarse."],
 ];
 
 export default function Home() {

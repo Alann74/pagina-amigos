@@ -196,9 +196,9 @@ export function Voting({ c, turn }: { c: Ctx; turn: ViewTurn }) {
       <div className="mystery panel center">
         <div className="mystery-card" aria-hidden="true">?</div>
         <div>
-          <p className="eyebrow">Reto {turn.n} de {view.roundSize}</p>
-          <p className="h2" style={{ margin: 0 }}>Reto misterioso</p>
-          <p className="muted small">Se muestra al revelar la carta elegida.</p>
+          <p className="eyebrow">Turno {turn.n} de {view.roundSize} · paso 1 de 2</p>
+          <p className="h2" style={{ margin: 0 }}>¿A quién le toca?</p>
+          <p className="muted small">Cada carta esconde a un jugador. Después se vota qué reto le toca.</p>
         </div>
       </div>
       <div className="cards" role="group" aria-label="Cartas boca abajo">
@@ -221,6 +221,50 @@ export function Voting({ c, turn }: { c: Ctx; turn: ViewTurn }) {
         )}
       </div>
     </section>
+  );
+}
+
+// ---------------- Paso 2: votar el reto ----------------
+function PickStage({ c, turn }: { c: Ctx; turn: ViewTurn }) {
+  const { view, send, busy } = c;
+  const [sel, setSel] = useState<number | null>(null);
+  const idleP = useIdle(turn.stageAt, view.serverNow);
+  const holder = turn.holderId!;
+  const voters = turn.pickVoters ?? [];
+  const canPick = voters.includes(view.me.id) && turn.myPick === null;
+  const pending = voters.filter((id) => !(turn.pickVoted ?? []).includes(id));
+  const count = turn.pickCount ?? 0;
+  return (
+    <div className="stack">
+      <div className="mystery panel center">
+        <div className="mystery-card" aria-hidden="true">?</div>
+        <div>
+          <p className="eyebrow">Paso 2 de 2</p>
+          <p className="h2" style={{ margin: 0 }}>{holder === view.me.id ? "Los demás eligen tu reto" : `¿Qué reto le toca a ${c.name(holder)}?`}</p>
+          <p className="muted small">{holder === view.me.id ? "Nunca sale un reto escrito por vos." : "Nadie sabe quién escribió cada reto. Nunca sale uno de la persona elegida."}</p>
+        </div>
+      </div>
+      <div className="cards" role="group" aria-label="Cartas de reto boca abajo">
+        {Array.from({ length: count }, (_, i) => i + 1).map((n) => (
+          <CardBack key={n} n={n} dealt={n} selected={canPick && sel === n} voted={turn.myPick === n}
+            onClick={canPick ? () => { setSel(n); sfx.tap(); } : undefined} disabled={busy} />
+        ))}
+      </div>
+      <div className="dock">
+        {turn.myPick !== null ? (
+          <p className="hint"><Icon name="check" size={16} /> Votaste la carta {turn.myPick}. {pending.length ? `Faltan: ${pending.map((id) => c.name(id)).join(", ")}` : ""}</p>
+        ) : canPick ? (
+          <button className="btn btn-primary btn-xl" disabled={sel === null || busy} onClick={async () => { const e = await send({ type: "pick", turnKey: turn.key, card: sel! }); if (e) c.toast(e); else sfx.vote(); }}>
+            {sel === null ? "Tocá una carta para votar el reto" : `Votar el reto ${sel}`}
+          </button>
+        ) : (
+          <p className="hint"><Icon name="clock" size={16} /> {holder === view.me.id ? `Esperando los votos de los demás (faltan ${pending.length})` : "Mirás este turno desde afuera"}</p>
+        )}
+        {view.me.active && holder !== view.me.id && pending.length > 0 && idleP.idle && (
+          <button className="btn btn-ghost" disabled={busy} onClick={() => send({ type: "closeVoting", turnKey: turn.key }).then((e) => e && c.toast(e))}>Alguien no vota: cerrar con {(turn.pickVoted ?? []).length} {(turn.pickVoted ?? []).length === 1 ? "voto" : "votos"}</button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -247,15 +291,17 @@ export function Revealed({ c, turn }: { c: Ctx; turn: ViewTurn }) {
         <div className="face-head">
           <span className="face-num" aria-label={`Carta ${turn.winnerCard}`}>#{turn.winnerCard}</span>
           <div>
-            <p className="eyebrow">Reto {turn.n} de {view.roundSize}{turn.shared ? " · compartido" : ""}</p>
+            <p className="eyebrow">Turno {turn.n} de {view.roundSize}{turn.shared ? " · compartido" : ""}</p>
             <p className="face-name">{c.name(holder)}{turn.shared && turn.partnerId ? ` + ${c.name(turn.partnerId)}` : ""}</p>
           </div>
         </div>
-        <p className="face-challenge">{turn.challenge}</p>
+        {turn.challengeRevealed && <p className="face-challenge">{turn.challenge}</p>}
         {turn.events && turn.events.length > 0 && (
           <ul className="events">{turn.events.map((e, i) => <li key={i}>{e}</li>)}</ul>
         )}
       </div>
+
+      {turn.stage === "picking" && <PickStage c={c} turn={turn} />}
 
       {turn.stage === "choosing" && (
         isHolder ? (

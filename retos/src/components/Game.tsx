@@ -64,19 +64,31 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
   const { sound, reduced, toggleSound, toggleMotion } = useSettings();
   const [sheet, setSheet] = useState<SheetKind>(null);
   const seenKey = `retos:seen:${view.code}`;
-  const [seenReveal, setSeenRevealState] = useState<string | null>(() => { try { return sessionStorage.getItem(seenKey); } catch { return null; } });
-  const setSeenReveal = useCallback((k: string) => { setSeenRevealState(k); try { sessionStorage.setItem(seenKey, k); } catch { /* */ } }, [seenKey]);
+  const [seen, setSeen] = useState<string[]>(() => { try { const v = JSON.parse(sessionStorage.getItem(seenKey) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } });
+  const markKey = useCallback((k: string) => setSeen((prev) => {
+    const n = [...prev.filter((x) => x !== k), k].slice(-8);
+    try { sessionStorage.setItem(seenKey, JSON.stringify(n)); } catch { /* */ }
+    return n;
+  }), [seenKey]);
   const names = useMemo(() => new Map(view.players.map((p) => [p.id, p.name])), [view.players]);
   const name = useCallback((id: string | null | undefined) => (id ? names.get(id) ?? "alguien" : "alguien"), [names]);
   const c: Ctx = { view, send, busy, toast, name };
   const turn = view.turn;
 
-  // Revelación: solo si es reciente (quien reconecta tarde no la repite).
-  const revealKey = turn?.revealed ? turn.key : null;
-  const fresh = !!turn?.revealedAt && view.serverNow - turn.revealedAt < 8000;
-  const showReveal = !!turn && !!revealKey && seenReveal !== revealKey && fresh;
-  const markSeen = useCallback(() => { if (revealKey) setSeenReveal(revealKey); }, [revealKey, setSeenReveal]);
-  useEffect(() => { if (revealKey && !fresh) setSeenReveal(revealKey); }, [revealKey, fresh, setSeenReveal]);
+  // Dos revelaciones por turno: 1) a quién le toca, 2) qué reto. Solo si son recientes (quien reconecta tarde no las repite).
+  const pKey = turn?.revealed ? `${turn.key}:p` : null;
+  const cKey = turn?.challengeRevealed ? `${turn.key}:c` : null;
+  const freshP = !!turn?.revealedAt && view.serverNow - turn.revealedAt < 8000;
+  const freshC = !!turn?.challengeRevealedAt && view.serverNow - turn.challengeRevealedAt < 8000;
+  const reveal: { kind: "p" | "c"; key: string } | null =
+    pKey && !seen.includes(pKey) && freshP ? { kind: "p", key: pKey }
+    : cKey && !seen.includes(cKey) && freshC ? { kind: "c", key: cKey } : null;
+  const showReveal = !!turn && !!reveal;
+  const markSeen = useCallback(() => { if (reveal) markKey(reveal.key); }, [reveal, markKey]);
+  useEffect(() => {
+    if (pKey && !freshP && !seen.includes(pKey)) markKey(pKey);
+    if (cKey && !freshC && !seen.includes(cKey)) markKey(cKey);
+  }, [pKey, cKey, freshP, freshC, seen, markKey]);
 
   // Avisos propios: comodín nuevo y turno propio
   const prevJokers = useRef<string[] | null>(null);
@@ -85,7 +97,7 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
     if (prevJokers.current && ids.some((i) => !prevJokers.current!.includes(i))) { sfx.joker(); toast("¡Te tocó un comodín nuevo!"); }
     prevJokers.current = ids;
   }, [view.me.jokers, toast]);
-  const myTurnKey = turn?.revealed && turn.holderId === view.me.id ? `${turn.key}:${turn.chain?.length}` : null;
+  const myTurnKey = turn?.challengeRevealed && turn.holderId === view.me.id ? `${turn.key}:${turn.chain?.length}` : null;
   const prevTurn = useRef<string | null>(null);
   useEffect(() => { if (myTurnKey && myTurnKey !== prevTurn.current && !showReveal) { sfx.turn(); if (navigator.vibrate) navigator.vibrate(60); } prevTurn.current = myTurnKey; }, [myTurnKey, showReveal]);
 
@@ -135,7 +147,7 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
         </div>
       </main>
 
-      {showReveal && turn && <Reveal turn={turn} holderName={holderName} onClose={markSeen} />}
+      {showReveal && turn && reveal && <Reveal key={reveal.key} kind={reveal.kind} turn={turn} holderName={holderName} onClose={markSeen} />}
 
       {view.paused && (
         <div className="pause" role="alertdialog" aria-label="Partida en pausa">
@@ -225,8 +237,16 @@ function banner(v: RoomView, name: (id?: string | null) => string): { title: str
       if (!t.revealed) {
         const left = v.players.filter((p) => p.active && !t.voted.includes(p.id)).length;
         return t.myVote !== null || !v.me.active
-          ? { title: `Faltan ${left} ${left === 1 ? "voto" : "votos"}`, sub: `Reto ${t.n} de ${v.roundSize}`, icon: "clock", tone: "wait" }
-          : { title: "Tu turno: votá una carta", sub: `Reto ${t.n} de ${v.roundSize} · nadie sabe quién está detrás`, icon: "star", tone: "go" };
+          ? { title: `Faltan ${left} ${left === 1 ? "voto" : "votos"}`, sub: `Turno ${t.n} de ${v.roundSize} · paso 1 de 2: a quién le toca`, icon: "clock", tone: "wait" }
+          : { title: "Tu turno: votá una carta", sub: `Turno ${t.n} de ${v.roundSize} · paso 1 de 2: a quién le toca (nadie sabe quién está detrás)`, icon: "star", tone: "go" };
+      }
+      if (t.stage === "picking") {
+        const voters = t.pickVoters ?? [];
+        const left2 = voters.filter((id) => !(t.pickVoted ?? []).includes(id)).length;
+        if (t.holderId === v.me.id) return { title: "Los demás eligen tu reto", sub: `Paso 2 de 2 · faltan ${left2} ${left2 === 1 ? "voto" : "votos"}`, icon: "clock", tone: "wait" };
+        return voters.includes(v.me.id) && t.myPick === null
+          ? { title: `Tu turno: votá el reto de ${name(t.holderId)}`, sub: "Paso 2 de 2 · cada carta esconde un reto", icon: "star", tone: "go" }
+          : { title: `Faltan ${left2} ${left2 === 1 ? "voto" : "votos"} del reto`, sub: `Paso 2 de 2 · reto de ${name(t.holderId)}`, icon: "clock", tone: "wait" };
       }
       const me = t.holderId === v.me.id;
       if (t.stage === "choosing") return me ? { title: "¡Te tocó! Tu turno", sub: "Elegí cómo resolverlo", icon: "star", tone: "go" } : { title: `Turno de ${name(t.holderId)}`, sub: "Esperando que decida", icon: "clock", tone: "wait" };

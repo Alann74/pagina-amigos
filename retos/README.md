@@ -8,8 +8,10 @@ Juego de retos para jugar entre amigos desde el celular. Sin registro. Un anfitr
 1. **Crear la sala** (anfitrión) y compartir el código de 4 letras, el enlace o el QR. Mínimo 3 jugadores.
 2. El anfitrión elige si se reparte **1 o 2 comodines en total** (al azar, en privado) y empieza.
 3. Cada uno **escribe un reto** en privado. La autoría nunca se muestra.
-4. Se elige un reto al azar (oculto). Aparece **una carta numerada por jugador**; los nombres están detrás, mezclados en cada turno. Todos **votan un número**. Empate = sorteo entre las cartas empatadas.
-5. **Revelación**: suspenso, giro de carta, nombre y reto.
+4. Cada turno tiene **dos votaciones**:
+   - **Paso 1, a quién le toca:** una carta numerada por jugador; los nombres están detrás, mezclados en cada turno. Todos **votan un número**. Empate = sorteo entre las cartas empatadas.
+   - **Paso 2, qué reto le toca:** cartas de reto boca abajo (nadie sabe quién escribió cada una). Votan todos **menos la persona elegida**. **Nunca sale un reto escrito por ella**: esa carta no existe en el paso 2 (y si solo queda un reto, se asigna directo).
+5. **Dos revelaciones** con suspenso, ruleta y giro de carta: primero el nombre, después el reto.
 6. El elegido puede **cumplir**, **proponer otra prenda** (todos los demás deben aceptarla; con un solo rechazo vuelve a elegir), **usar un comodín** o **retirarse**. El anfitrión **confirma** antes de avanzar.
 7. Con N jugadores, una ronda son N retos resueltos. Al terminar: resumen, un comodín nuevo al azar y nuevos retos.
 

@@ -2,7 +2,7 @@
 
 export type JokerType = "pass" | "bounce";
 export type Phase = "lobby" | "writing" | "turn" | "summary" | "ended";
-export type Stage = "voting" | "choosing" | "altVoting" | "confirming";
+export type Stage = "voting" | "picking" | "choosing" | "altVoting" | "confirming";
 export type ResolutionKind = "done" | "alt" | "withdraw";
 
 export const IDLE_MS = 45000; // tras este tiempo sin respuesta, cualquiera puede destrabar
@@ -36,6 +36,15 @@ export interface ViewTurn {
   tally?: number[];
   tied?: number[];
   challenge?: string;
+  challengeRevealed?: boolean;
+  challengeRevealedAt?: number;
+  pickCount?: number;
+  pickVoted?: string[];
+  pickVoters?: string[];
+  myPick?: number | null;
+  pickWinner?: number;
+  pickTally?: number[];
+  pickTied?: number[];
   holderId?: string;
   originalId?: string;
   chain?: string[];
@@ -107,6 +116,7 @@ export type Action =
   | { type: "submitChallenge"; text: string }
   | { type: "forceVoting" }
   | { type: "vote"; turnKey: string; card: number }
+  | { type: "pick"; turnKey: string; card: number }
   | { type: "closeVoting"; turnKey: string }
   | { type: "fulfill"; turnKey: string }
   | { type: "withdraw"; turnKey: string }

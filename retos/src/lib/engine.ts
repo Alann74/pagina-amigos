@@ -45,12 +45,20 @@ export interface Turn {
   n: number;
   stage: Stage;
   stageAt: number;
-  challengeId: string;
-  challengeText: string;
   cards: string[]; // cards[i] = jugador detrás de la carta i+1 (secreto hasta la revelación)
   votes: Record<string, number>;
-  revealed: boolean;
+  revealed: boolean; // ya se sabe a quién le toca
   revealedAt?: number;
+  // Paso 2: votación de la carta de reto (cada carta oculta un reto; nunca el que escribió el elegido)
+  challengeCards: string[]; // ids de reto; challengeCards[i] = reto detrás de la carta i+1 (secreto)
+  pickVotes: Record<string, number>;
+  pickTally?: number[];
+  pickTied?: number[];
+  pickWinner?: number;
+  challengeId: string | null;
+  challengeText: string | null;
+  challengeRevealed: boolean;
+  challengeRevealedAt?: number;
   winnerCard?: number;
   tally?: number[];
   tied?: number[];
@@ -219,26 +227,30 @@ function maybeBeginTurns(room: Room, rng: Rng, force = false) {
 }
 
 function startTurn(room: Room, rng: Rng) {
-  const pick = room.pool.splice(rng.int(room.pool.length), 1)[0];
   const cards = shuffle(activePlayers(room).map((p) => p.id), rng);
   room.turn = {
     key: `${room.round}-${room.resolved + 1}`,
     n: room.resolved + 1,
     stage: "voting", stageAt: room.clock,
-    challengeId: pick.id,
-    challengeText: pick.text,
     cards, votes: {}, revealed: false,
+    challengeCards: [], pickVotes: {}, challengeId: null, challengeText: null, challengeRevealed: false,
     chain: [], shared: false, partnerId: null, judgeId: null, alt: null, altRejected: [], resolution: null, events: [],
   };
 }
+
+/** Una carta solo puede salir si queda algún reto que no sea del jugador de esa carta. */
+const canBeChosen = (room: Room, playerId: string) => room.pool.some((c) => c.authorId !== playerId);
 
 function closeVoting(room: Room, rng: Rng) {
   const t = room.turn as Turn;
   const tally = t.cards.map(() => 0);
   for (const [pid, card] of Object.entries(t.votes)) if (t.cards.includes(pid)) tally[card - 1]++;
-  const max = Math.max(...tally);
-  const tied = max === 0 ? t.cards.map((_, i) => i + 1) : tally.flatMap((v, i) => (v === max ? [i + 1] : []));
+  const rawMax = Math.max(...tally);
+  const cand = tally.map((v, i) => ({ v, card: i + 1 })).filter((c) => canBeChosen(room, t.cards[c.card - 1]));
+  const max = Math.max(...cand.map((c) => c.v));
+  const tied = max === 0 ? cand.map((c) => c.card) : cand.filter((c) => c.v === max).map((c) => c.card);
   const winner = tied.length === 1 ? tied[0] : tied[rng.int(tied.length)];
+  if (max < rawMax) t.events.push("La carta más votada no podía salir (solo quedaba un reto escrito por esa persona): se eligió otra.");
   t.tally = tally;
   t.tied = tied;
   t.winnerCard = winner;
@@ -247,9 +259,46 @@ function closeVoting(room: Room, rng: Rng) {
   t.chain = [t.holderId];
   t.revealed = true;
   t.revealedAt = room.clock;
+  startPicking(room, t, rng);
+}
+
+/** Paso 2: se arman las cartas de reto (sin el reto que escribió el elegido). Con un solo reto posible, sale directo. */
+function startPicking(room: Room, t: Turn, rng: Rng) {
+  const eligible = room.pool.filter((c) => c.authorId !== t.holderId);
+  t.stageAt = room.clock;
+  if (eligible.length === 1) {
+    t.challengeCards = [eligible[0].id];
+    setChallenge(room, t, eligible[0].id, 1, undefined, undefined);
+    return;
+  }
+  t.challengeCards = shuffle(eligible.map((c) => c.id), rng);
+  t.stage = "picking";
+}
+
+function setChallenge(room: Room, t: Turn, id: string, winner: number, tally?: number[], tied?: number[]) {
+  const idx = room.pool.findIndex((c) => c.id === id);
+  const ch = room.pool.splice(idx, 1)[0]; // el reto usado se retira del conjunto
+  t.challengeId = ch.id;
+  t.challengeText = ch.text;
+  t.challengeRevealed = true;
+  t.challengeRevealedAt = room.clock;
+  t.pickWinner = winner; t.pickTally = tally; t.pickTied = tied;
   t.stage = "choosing";
   t.stageAt = room.clock;
 }
+
+function closePicking(room: Room, rng: Rng) {
+  const t = room.turn as Turn;
+  const tally = t.challengeCards.map(() => 0);
+  for (const [pid, card] of Object.entries(t.pickVotes)) if (pickVoters(room, t).includes(pid)) tally[card - 1]++;
+  const max = Math.max(...tally);
+  const tied = max === 0 ? t.challengeCards.map((_, i) => i + 1) : tally.flatMap((v, i) => (v === max ? [i + 1] : []));
+  const winner = tied.length === 1 ? tied[0] : tied[rng.int(tied.length)];
+  setChallenge(room, t, t.challengeCards[winner - 1], winner, tally, tied);
+}
+
+/** Votan el reto todos los jugadores activos menos la persona a la que le toca. */
+export const pickVoters = (room: Room, t: Turn) => activePlayers(room).filter((p) => p.id !== t.holderId).map((p) => p.id);
 
 /** Pasa a "confirmando" y sortea el árbitro entre quienes no son parte del reto. */
 function resolveTo(room: Room, t: Turn, kind: ResolutionKind, rng: Rng, text?: string) {
@@ -277,7 +326,7 @@ function finishTurn(room: Room, outcome: "ok" | "fail", rng: Rng) {
     p.round[field]++;
   }
   room.history.unshift({
-    id: ++room.seq, round: room.round, n: t.n, challenge: t.challengeText,
+    id: ++room.seq, round: room.round, n: t.n, challenge: t.challengeText as string,
     subjects: subjects.map((id) => nameOf(room, id)), kind: res.kind, text: res.text, events: [...t.events], tied: (t.tied?.length ?? 0) > 1,
   });
   if (room.history.length > 200) room.history.length = 200;
@@ -383,10 +432,21 @@ export function applyAction(
       return;
     }
     case "closeVoting": {
-      const t = turnOf(a.turnKey, "voting");
+      const t = turnOf(a.turnKey, ["voting", "picking"]);
       needActive();
+      if (t.stage === "picking" && me.id === t.holderId) throw new GameError("not_allowed", "Tu reto lo eligen los demás.", 403);
       if (!idle(t.stageAt)) throw tooEarly();
-      closeVoting(room, rng); return;
+      if (t.stage === "voting") closeVoting(room, rng); else closePicking(room, rng);
+      return;
+    }
+    case "pick": {
+      const t = turnOf(a.turnKey, "picking");
+      if (!pickVoters(room, t).includes(me.id)) throw new GameError("not_voter", t.holderId === me.id ? "Tu reto lo eligen los demás." : "Mirás esta ronda desde afuera.", 403);
+      if (me.id in t.pickVotes) throw new GameError("already_voted", "Ya votaste.", 409);
+      if (!Number.isInteger(a.card) || a.card < 1 || a.card > t.challengeCards.length) throw new GameError("bad_input", "Carta inválida.");
+      t.pickVotes[me.id] = a.card;
+      if (pickVoters(room, t).every((id) => id in t.pickVotes)) closePicking(room, rng);
+      return;
     }
     case "skipHolder": {
       const t = turnOf(a.turnKey, ["choosing", "altVoting"]);

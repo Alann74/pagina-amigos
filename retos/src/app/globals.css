@@ -387,3 +387,8 @@ button.card-back:not(:disabled):hover { box-shadow: 0 10px 0 rgba(0,0,0,.45), 0 
 .splash-logo span:first-child { color: var(--cream); } .splash-logo span:last-child { color: var(--coral); text-shadow: 0 4px 0 var(--coral-deep); }
 .splash-tap { margin: 0; color: var(--muted); font-weight: 700; animation: tapPulse 1.6s ease-in-out 1.2s infinite, fade 0.5s 1s backwards; }
 @keyframes tapPulse { 50% { opacity: 0.45; } }
+
+/* Paso 2: la carta trasera de la revelación del reto lleva el texto */
+.flip-back.is-text { padding: 18px; }
+.flip-text { font-size: clamp(1.15rem, 5.4vw, 1.6rem); line-height: 1.15; font-weight: 800; text-align: center; overflow-wrap: anywhere; }
+.face-challenge.is-hidden { background: transparent; border: 2px dashed var(--ink); font-size: 1.05rem; opacity: 0.75; }

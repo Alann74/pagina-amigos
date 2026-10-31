@@ -26,8 +26,14 @@ function setup(names = ["Ana", "Beto", "Cami", "Dani"]) {
 }
 const turn = (r: Room) => r.turn!;
 const byId = (r: Room, id: string) => getPlayer(r, id)!;
-function everyoneVotes(r: Room, ids: string[], card: (i: number) => number) {
+/** Paso 1: todos votan una carta (a quién le toca). */
+function votePlayers(r: Room, ids: string[], card: (i: number) => number) {
   ids.forEach((id, i) => act(r, id, { type: "vote", turnKey: turn(r).key, card: card(i) }));
+}
+/** Paso 1 + paso 2: además, todos menos el elegido votan la carta 1 de reto. Queda en "choosing". */
+function everyoneVotes(r: Room, ids: string[], card: (i: number) => number) {
+  votePlayers(r, ids, card);
+  if (turn(r).stage === "picking") ids.filter((id) => id !== turn(r).holderId).forEach((id) => act(r, id, { type: "pick", turnKey: turn(r).key, card: 1 }));
 }
 /** Confirma el turno como lo haría el árbitro sorteado. */
 const judgeConfirms = (r: Room, outcome: "ok" | "fail" = "ok") => act(r, turn(r).judgeId!, { type: "confirm", turnKey: turn(r).key, outcome });
@@ -86,9 +92,9 @@ test("votos: uno por persona, sin duplicados, clave vieja rechazada", () => {
 
 test("mayoría gana; empate se sortea entre las cartas empatadas", () => {
   const a = setup();
-  everyoneVotes(a.room, a.ids, (i) => (i < 3 ? 2 : 4));
+  votePlayers(a.room, a.ids, (i) => (i < 3 ? 2 : 4));
   assert.equal(turn(a.room).winnerCard, 2);
-  assert.equal(turn(a.room).stage, "choosing");
+  assert.equal(turn(a.room).stage, "picking", "después de elegir a la persona se vota el reto");
   assert.equal(turn(a.room).holderId, turn(a.room).cards[1]);
   const seen = new Set<number>();
   for (let s = 0; s < 40; s++) {
@@ -243,18 +249,87 @@ test("ronda completa: N turnos, comodín nuevo, resumen; todos 'seguimos' => nue
   assert.equal(turn(room).key, "2-1");
 });
 
-test("una misma persona puede salir más de una vez en la ronda (selección aleatoria)", () => {
-  const { room, ids } = setup(["A", "B", "C"]);
+test("una misma persona puede salir más de una vez en la ronda (selección por votos, sin tope)", () => {
+  const { room, ids } = setup(["A", "B", "C", "D"]);
   const holders: string[] = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     const t = turn(room);
-    const target = t.cards.indexOf(ids[0]) + 1;
-    ids.forEach((id) => act(room, id, { type: "vote", turnKey: t.key, card: target }));
+    const target = t.cards.indexOf(ids[0]) + 1; // todos votan la carta donde está A
+    votePlayers(room, ids, () => target);
     holders.push(turn(room).holderId!);
+    ids.filter((id) => id !== ids[0]).forEach((id) => act(room, id, { type: "pick", turnKey: t.key, card: 1 }));
     act(room, ids[0], { type: "fulfill", turnKey: t.key });
     judgeConfirms(room);
   }
-  assert.deepEqual(holders, [ids[0], ids[0], ids[0]]);
+  assert.deepEqual(holders, [ids[0], ids[0]]);
+});
+
+test("dos votaciones: primero a quién le toca, después qué reto; nunca sale un reto del elegido", () => {
+  for (let seed = 0; seed < 40; seed++) {
+    const { room, ids } = setup(["A", "B", "C", "D", "E"]);
+    const r = seeded(seed);
+    const key = turn(room).key;
+    ids.forEach((id, i) => applyAction(room, id, { type: "vote", turnKey: key, card: (i % 5) + 1 }, NOW, r));
+    const t = turn(room);
+    assert.equal(t.stage, "picking");
+    assert.ok(t.revealed && !t.challengeRevealed, "se sabe a quién le toca pero todavía no el reto");
+    assert.equal(t.challengeText, null);
+    const authors = new Map(room.pool.map((c) => [c.id, c.authorId]));
+    assert.ok(t.challengeCards.length === 4 && t.challengeCards.every((id) => authors.get(id) !== t.holderId), "las cartas de reto excluyen el reto del elegido");
+    const voters = ids.filter((id) => id !== t.holderId);
+    throwsCode(() => act(room, t.holderId!, { type: "pick", turnKey: t.key, card: 1 }), "not_voter");
+    throwsCode(() => act(room, voters[0], { type: "pick", turnKey: t.key, card: 9 }), "bad_input");
+    voters.forEach((id, i) => applyAction(room, id, { type: "pick", turnKey: t.key, card: (i % 4) + 1 }, NOW, r));
+    assert.equal(t.stage, "choosing");
+    assert.ok(t.challengeRevealed && t.challengeText);
+    assert.notEqual(room.history.length > 99, true);
+    const chosenAuthor = [...authors.entries()].find(([id]) => id === t.challengeId)![1];
+    assert.notEqual(chosenAuthor, t.holderId, "nadie hace el reto que escribió");
+    assert.equal(room.pool.length, 4, "el reto usado se retira del conjunto");
+  }
+});
+
+test("votar el reto: un voto por persona, empate se sortea, y si nadie vota cualquiera cierra pasado el tiempo", () => {
+  const { room, ids } = setup(["A", "B", "C", "D"]);
+  votePlayers(room, ids, () => 1);
+  const t = turn(room);
+  const [v1, v2, v3] = ids.filter((id) => id !== t.holderId);
+  act(room, v1, { type: "pick", turnKey: t.key, card: 2 });
+  throwsCode(() => act(room, v1, { type: "pick", turnKey: t.key, card: 1 }), "already_voted");
+  throwsCode(() => act(room, v2, { type: "closeVoting", turnKey: t.key }), "too_early");
+  throwsCode(() => act(room, t.holderId!, { type: "closeVoting", turnKey: t.key }, LATE), "not_allowed");
+  act(room, v2, { type: "closeVoting", turnKey: t.key }, LATE);
+  assert.equal(t.pickWinner, 2, "gana la única carta votada");
+  assert.equal(t.stage, "choosing");
+  void v3;
+  const seen = new Set<number>();
+  for (let s = 0; s < 40; s++) {
+    const g = setup(["A", "B", "C", "D"]);
+    votePlayers(g.room, g.ids, () => 1);
+    const tt = turn(g.room);
+    const vs = g.ids.filter((id) => id !== tt.holderId);
+    const r = seeded(s);
+    applyAction(g.room, vs[0], { type: "pick", turnKey: tt.key, card: 1 }, NOW, r);
+    applyAction(g.room, vs[1], { type: "pick", turnKey: tt.key, card: 2 }, NOW, r);
+    applyAction(g.room, vs[2], { type: "pick", turnKey: tt.key, card: 3 }, NOW, r);
+    assert.deepEqual(tt.pickTied, [1, 2, 3]);
+    seen.add(tt.pickWinner!);
+  }
+  assert.equal(seen.size, 3, "las cartas empatadas pueden ganar");
+});
+
+test("último reto: si solo queda el reto de la persona más votada, sale otra carta y el reto se asigna solo", () => {
+  const { room, ids } = setup(["A", "B", "C"]);
+  const authorOf = room.pool[0].authorId;
+  room.pool = [room.pool[0]];                      // queda un único reto, escrito por "authorOf"
+  const t = turn(room);
+  const target = t.cards.indexOf(authorOf) + 1;
+  votePlayers(room, ids, () => target);            // todos votan la carta del autor
+  assert.notEqual(t.holderId, authorOf, "al autor no le puede tocar su propio reto");
+  assert.equal(t.stage, "choosing", "con un solo reto posible no hay segunda votación");
+  assert.ok(t.challengeRevealed && t.challengeText);
+  assert.ok(t.events.some((e) => e.includes("no podía salir")));
+  assert.equal(room.pool.length, 0);
 });
 
 test("cualquiera pausa y reanuda; terminar se vota por mayoría; irse de la sala", () => {
@@ -282,21 +357,29 @@ test("cualquiera pausa y reanuda; terminar se vota por mayoría; irse de la sala
   throwsCode(() => act(s.room, s.ids[0], { type: "leave" }), "wrong_phase");
 });
 
-test("secretos: la vista no filtra autoría, reto en curso, cartas->nombre, votos ni comodines ajenos; no hay anfitrión", () => {
+test("secretos: la vista no filtra autoría, retos antes de revelar, cartas->nombre/reto, votos ni comodines ajenos; no hay anfitrión", () => {
   const { room, ids } = setup(["A", "B", "C", "D"]);
   act(room, ids[0], { type: "vote", turnKey: turn(room).key, card: 3 });
   room.players[1].jokers = [{ id: "secretoj", type: "pass" }];
   const spy = buildView(room, ids[2], NOW, {}, 1);
   const s = JSON.stringify(spy);
-  assert.ok(!s.includes(turn(room).challengeText), "el reto no se envía antes de revelar");
+  assert.ok(!/Reto numero [124]/.test(s), "ningún reto ajeno viaja antes de revelar (el propio sí: lo escribió quien mira)");
   assert.ok(!s.includes("authorId") && !s.includes("tokenHash") && !s.includes("secretoj"));
-  assert.ok(!s.includes('"cards"') && !s.includes("hostId") && !s.includes("isHost"));
+  assert.ok(!s.includes('"cards"') && !s.includes("challengeCards") && !s.includes("hostId") && !s.includes("isHost"));
   assert.equal(spy.turn!.myVote, null);
   assert.deepEqual(spy.turn!.voted, [ids[0]]);
   assert.equal(buildView(room, ids[0], NOW, {}, 1).turn!.myVote, 3, "cada uno ve su propio voto");
   ids.slice(1).forEach((id) => act(room, id, { type: "vote", turnKey: turn(room).key, card: 3 }));
-  const after = JSON.stringify(buildView(room, ids[2], NOW, {}, 2));
-  assert.ok(after.includes(turn(room).challengeText));
+  // a quién le toca ya se sabe; el reto todavía no, y las cartas de reto no muestran su contenido
+  const mid = JSON.stringify(buildView(room, ids[2], NOW, {}, 2));
+  assert.ok(!/Reto numero [124]/.test(mid) && !mid.includes("challengeCards"));
+  const holder = turn(room).holderId!;
+  const voters = ids.filter((id) => id !== holder);
+  act(room, voters[0], { type: "pick", turnKey: turn(room).key, card: 2 });
+  assert.equal(buildView(room, voters[1], NOW, {}, 2).turn!.myPick, null, "el voto del reto de otro no se ve");
+  voters.slice(1).forEach((id) => act(room, id, { type: "pick", turnKey: turn(room).key, card: 2 }));
+  const after = JSON.stringify(buildView(room, ids[2], NOW, {}, 3));
+  assert.ok(after.includes(turn(room).challengeText as string));
   assert.ok(!after.includes("authorId"));
 });
 

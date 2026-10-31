@@ -23,14 +23,19 @@ const check = (ok, m) => { console.log(ok ? "  ✔" : "  ✘ FALLA:", m); if (!o
   await P.Ana.waitForFunction(() => document.querySelectorAll(".pills li").length === 3); check(true, "3 jugadores entran por enlace y se ven entre sí");
   await shot("Ana", "p1-sala"); for (const n of NAMES) await click(n, /Estoy listo/);   // sin anfitrión: arranca cuando todos están listos
   for (const n of NAMES) { await P[n].getByLabel("Escribí tu reto en privado").fill("Reto de " + n + " número uno"); await click(n, /Enviar reto/); }
-  await see("Ana", /Reto misterioso/); check(true, "con todos los retos listos se pasa a la votación"); await shot("Beto", "p2-votacion");
+  await see("Ana", /A quién le toca/); check(true, "con todos los retos listos se pasa a la votación"); await shot("Beto", "p2-votacion");
   const vote = async (n) => { await P[n].locator("button.card-back").first().click(); await click(n, /Votar la carta 1/); };
   const holderName = async () => (await P.Ana.locator(".face-name").first().innerText()).split(" + ")[0].trim();
+  const pick = async (h) => {
+    const mode = await Promise.any([P[h].getByText(/Los demás eligen tu reto/).first().waitFor({ timeout: 20000 }).then(() => "pick"), P.Ana.locator(".reveal").waitFor({ timeout: 20000 }).then(() => "auto")]);
+    if (mode === "pick") { for (const n of NAMES.filter((x) => x !== h)) { await P[n].locator("button.card-back").first().click(); await click(n, /Votar el reto 1/); } await P.Ana.locator(".reveal").waitFor({ timeout: 20000 }); await P.Ana.locator(".reveal button:not([disabled])").waitFor({ timeout: 25000 }); await shot("Ana", "pc-revelacion-reto"); }
+    for (const n of NAMES) { const b = P[n].locator(".reveal button:not([disabled])"); await b.waitFor({ state: "visible", timeout: 25000 }); await b.click(); }
+  };
   const skip = async () => { for (const n of NAMES) { const b = P[n].locator(".reveal button:not([disabled])"); await b.waitFor({ state: "visible", timeout: 25000 }); await b.click(); } };
   for (let t = 1; t <= 3; t++) {
-    await see("Ana", new RegExp(`Reto ${t} de 3`)); for (const n of NAMES) await vote(n);
+    await see("Ana", new RegExp(`Turno ${t} de 3`)); for (const n of NAMES) await vote(n);
     await P.Ana.locator(".reveal").waitFor(); if (t === 1) await P.Ana.waitForTimeout(1200), await shot("Ana", "p3-suspenso");
-    await skip(); const h = await holderName(); console.log("turno", t, "->", h);
+    await P.Ana.locator(".reveal button:not([disabled])").waitFor({ timeout: 25000 }); const h = await P.Ana.locator(".reveal .flip-name").first().getAttribute("aria-label"); await skip(); console.log("turno", t, "->", h); await pick(h);
     if (t === 1) { await shot(h, "p4-tu-turno"); await click(h, /Cumplir el reto/); }
     if (t === 2) { await click(h, /Proponer otra prenda/); await P[h].getByLabel("Tu prenda alternativa").fill("Invitar un helado"); await click(h, /^Proponer$/); for (const v of NAMES.filter((x) => x !== h)) await click(v, /Acepto/); }
     if (t === 3) { await click(h, /Retirarme del reto/); await click(h, /Sí, me retiro/); }

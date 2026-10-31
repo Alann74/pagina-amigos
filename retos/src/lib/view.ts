@@ -1,6 +1,6 @@
 // Construye lo que ve CADA jugador. Nunca incluye autoría de retos, reto en curso antes de revelar,
 // cartas->nombre, votos ajenos antes de la revelación ni comodines ajenos.
-import { activePlayers, altVoters, canProceed, getPlayer } from "./engine";
+import { activePlayers, altVoters, canProceed, getPlayer, pickVoters } from "./engine";
 import type { Room } from "./engine";
 import { PRESENCE_MS } from "./types";
 import type { RoomView, ViewTurn } from "./types";
@@ -24,7 +24,10 @@ export function buildView(room: Room, viewerId: string, now: number, presence: R
       const hasBounce = me.jokers.some((j) => j.type === "bounce");
       const passTargets = act.filter((p) => !t.chain.includes(p.id)).map((p) => p.id);
       Object.assign(turn, {
-        revealedAt: t.revealedAt, winnerCard: t.winnerCard, tally: t.tally, tied: t.tied, challenge: t.challengeText,
+        revealedAt: t.revealedAt, winnerCard: t.winnerCard, tally: t.tally, tied: t.tied,
+        challengeRevealed: t.challengeRevealed,
+        pickCount: t.challengeCards.length, pickVoted: Object.keys(t.pickVotes), pickVoters: pickVoters(room, t), myPick: t.pickVotes[viewerId] ?? null,
+        ...(t.challengeRevealed ? { challenge: t.challengeText as string, challengeRevealedAt: t.challengeRevealedAt, pickWinner: t.pickWinner, pickTally: t.pickTally, pickTied: t.pickTied } : {}),
         holderId: t.holderId, originalId: t.originalId, chain: t.chain, shared: t.shared, partnerId: t.partnerId, judgeId: t.judgeId,
         alt: t.alt ? {
           text: t.alt.text, proposerId: t.alt.proposerId, voted: Object.keys(t.alt.votes),

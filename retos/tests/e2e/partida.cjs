@@ -43,7 +43,7 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
     check(await sp.locator(".splash-logo").isVisible(), "al entrar aparece el logo del mono");
     check(await sp.locator(".splash .puff-i").first().evaluate((e) => parseFloat(getComputedStyle(e).opacity) > 0), "sale humo del cigarrillo (animado)");
     check((await sp.locator(".splash .grin, .splash .smile").count()) === 0, "la sonrisa es la original del dibujo (sin capa de sonrisa animada)");
-    await sp.locator(".splash").click(); await sp.locator(".splash").waitFor({ state: "detached" });
+    if (await sp.locator(".splash:not(.is-leaving)").count()) await sp.locator(".splash").click({ timeout: 2000 }).catch(() => {}); await sp.locator(".splash").waitFor({ state: "detached" });
     check(true, "la pantalla de entrada se cierra al tocar y no vuelve en la sesión");
     await sp.reload(); await sp.waitForTimeout(600);
     check((await sp.locator(".splash").count()) === 0, "no se repite al recargar en la misma sesión");
@@ -92,7 +92,7 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await click("Dani", /Enviar reto/);
 
   // 3. Voto con empate (2 vs 2) + comodines para todos para escenarios deterministas
-  await text("Ana", /Reto misterioso/);
+  await text("Ana", /A quién le toca/);
   const r = await fetch(`${BASE}/api/rooms/${code}/test`, { method: "POST", body: JSON.stringify({ jokers: { Ana: ["pass", "bounce"], Beto: ["pass", "bounce"], Cami: ["pass", "bounce"], Dani: ["pass", "bounce"] } }) });
   check(r.ok, "comodines de prueba repartidos (modo test)");
   for (const n of NAMES) await pages[n].locator("button.card-back").first().waitFor();
@@ -117,17 +117,37 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await pages.Ana.waitForFunction(() => !document.querySelector(".reveal button")?.disabled);
   await shot("Ana", "10-revelacion-final");
   await noOverflow("Ana", "revelación");
-  for (const n of NAMES) { const b = pages[n].getByRole("button", { name: "Seguir" }); await b.waitFor({ state: "visible", timeout: 15000 }); await pages[n].waitForFunction(() => !document.querySelector(".reveal button")?.disabled); await b.click(); }
   const holderOf = async () => (await pages.Ana.locator(".face-name").first().innerText()).split(" + ")[0].trim();
-  const afterReveal = async () => {
+  const skipReveal = async () => {
     for (const n of NAMES) {
       const b = pages[n].locator(".reveal button:not([disabled])");
-      await b.waitFor({ state: "visible", timeout: 20000 });
+      await b.waitFor({ state: "visible", timeout: 25000 });
       await b.click();
     }
   };
-  let holder = await holderOf();
+  // Paso 2: votan el reto todos menos el elegido; después se revela el reto (segunda revelación)
+  const pickReto = async (h) => {
+    // Con un solo reto posible (últimos turnos) no hay segunda votación: el reto se asigna y se revela directo.
+    const mode = await Promise.any([
+      pages[h].getByText(/Los demás eligen tu reto/).first().waitFor({ timeout: 15000 }).then(() => "pick"),
+      pages.Ana.locator(".reveal").waitFor({ timeout: 15000 }).then(() => "auto"),
+    ]);
+    if (mode === "pick") {
+      check((await pages[h].locator("button.card-back").count()) === 0, "el elegido no vota su propio reto");
+      for (const n of NAMES.filter((x) => x !== h)) { await pages[n].locator("button.card-back").first().click(); await click(n, /Votar el reto 1/); }
+      await pages.Ana.locator(".reveal").waitFor({ timeout: 15000 });
+    }
+    await skipReveal();
+  };
+  // Primera revelación (a quién le toca) + paso 2 (qué reto). Devuelve el titular.
+  const holderFromReveal = async () => { await pages.Ana.locator(".reveal button:not([disabled])").waitFor({ timeout: 25000 }); return pages.Ana.locator(".reveal .flip-name").first().getAttribute("aria-label"); };
+  const afterReveal = async () => { const h = await holderFromReveal(); await skipReveal(); await pickReto(h); return h; };
+  let holder = await holderFromReveal();
+  await skipReveal();
   log("turno 1 (empate) le toca a", holder);
+  check(await pages[holder].getByText(/Paso 2 de 2/).first().isVisible() && (await pages[holder].locator(".face-challenge").count()) === 0, "después de la primera revelación todavía no se sabe el reto (paso 2)");
+  await shot(holder === "Ana" ? "Beto" : "Ana", "10b-paso2-votar-reto");
+  await pickReto(holder);
   check(!!pages[holder], "la carta ganadora revela un jugador de la sala");
   await shot(holder, "11-tu-turno-titular");
   check(await btn(holder, /Cumplir el reto/).isVisible(), "el titular ve sus 4 opciones");
@@ -158,7 +178,7 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   check(judge1 !== holder, "confirmó un árbitro sorteado distinto del titular (" + judge1 + ")");
 
   // 4. Turno 2: pase + rebote (reconexión de un jugador en medio)
-  await text("Ana", /Reto 2 de 4/);
+  await text("Ana", /Turno 2 de 4/);
   const votes2 = [1, 1, 1, 1]; for (const [i, n] of NAMES.entries()) await voteFor(n, votes2[i]);
   await afterReveal();
   let h2 = await holderOf(); log("turno 2 titular", h2);
@@ -175,14 +195,14 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await click(targetName, /Usar un comodín/);
   await shot(targetName, "14-menu-comodin");
   await click(targetName, /Usar Rebote/);
-  await text(targetName, /Reto 2 de 4 · compartido/);
+  await text(targetName, /Turno 2 de 4 · compartido/);
   check(await btn(targetName, /Usar un comodín/).count() === 0, "en un reto compartido ya no hay comodines");
   await shot(targetName, "15-reto-compartido");
   await click(targetName, /Cumplir el reto/);
   await clickAny(/Confirmar y seguir/);
 
   // 5. Turno 3: retiro; pausa y reanudación
-  await text("Ana", /Reto 3 de 4/);
+  await text("Ana", /Turno 3 de 4/);
   for (const n of NAMES) await voteFor(n, 3);
   await afterReveal();
   let h3 = await holderOf();
@@ -199,7 +219,7 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await clickAny(/Confirmar y seguir/);
 
   // 6. Turno 4: cumplir pero el anfitrión marca que no lo cumplió → fin de ronda
-  await text("Ana", /Reto 4 de 4/);
+  await text("Ana", /Turno 4 de 4/);
   for (const n of NAMES) await voteFor(n, 4);
   await afterReveal();
   let h4 = await holderOf();
