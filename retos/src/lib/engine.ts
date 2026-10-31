@@ -74,7 +74,7 @@ export interface Turn {
   events: string[];
 }
 export interface HistoryItem {
-  smoke?: { name: string; count: number; skipped: boolean };
+  smoke?: { name: string; count: number };
   id: number; round: number; n: number; challenge: string; subjects: string[];
   kind: ResolutionKind; text?: string; events: string[]; tied: boolean;
 }
@@ -429,10 +429,9 @@ export function applyAction(
       if (!sm || sm.id !== a.id) throw new GameError("stale", "Esa ruleta ya terminó.", 409);
       needActive();
       if (now - sm.at < SMOKE_MIN_MS) throw new GameError("too_early", "Esperá a que termine la animación.", 409);
-      const skipped = !!a.skipped && me.id === sm.playerId; // solo la persona elegida puede pasar
       room.history.unshift({
         id: ++room.seq, round: room.round, n: 0, challenge: "Ruleta de humo", subjects: [nameOf(room, sm.playerId)], kind: "done", events: [], tied: false,
-        smoke: { name: nameOf(room, sm.playerId), count: sm.count, skipped },
+        smoke: { name: nameOf(room, sm.playerId), count: sm.count },
       });
       room.smoke = null;
       return;

@@ -61,7 +61,7 @@ export interface ViewTurn {
 }
 
 export interface HistoryEntry {
-  smoke?: { name: string; count: number; skipped: boolean };
+  smoke?: { name: string; count: number };
   id: number;
   round: number;
   n: number;
@@ -139,6 +139,6 @@ export type Action =
   | { type: "leave" }
   | { type: "rematch" }
   | { type: "smokeVote"; on: boolean }
-  | { type: "smokeNext"; id: string; skipped?: boolean };
+  | { type: "smokeNext"; id: string };
 
 export const LIMITS = { name: 20, challenge: 140, alt: 140, maxPlayers: 15, minPlayers: 3 } as const;

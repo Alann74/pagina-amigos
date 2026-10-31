@@ -434,3 +434,14 @@ button.card-back:not(:disabled):hover { box-shadow: 0 10px 0 rgba(0,0,0,.45), 0 
 .smoke-nums span { background: rgba(14, 20, 12, 0.78); }
 .smoke-haze i { background: radial-gradient(circle, rgba(214, 224, 205, 0.88) 0%, rgba(176, 196, 168, 0.66) 40%, rgba(140, 165, 130, 0) 72%); }
 .smoke-actions .btn-ghost { background: rgba(14, 20, 12, 0.82); }
+
+/* Rueda de la ruleta: gira varias vueltas y frena sola sobre un sector (1 a 5) */
+.wheel-wrap { position: relative; width: min(64vw, 250px); aspect-ratio: 1; opacity: 0; transform: scale(0.4); transition: opacity 0.4s, transform 0.5s cubic-bezier(.2,1.6,.4,1); }
+.wheel-wrap.on { opacity: 1; transform: none; }
+.wheel { width: 100%; height: 100%; border-radius: 50%; filter: drop-shadow(0 8px 0 rgba(0,0,0,0.45)); box-shadow: 0 0 0 5px var(--cream); }
+.wheel.spinning { transition: transform 4.6s cubic-bezier(0.12, 0.62, 0.1, 1); }
+.wheel-pointer { position: absolute; z-index: 2; left: 50%; top: -14px; width: 0; height: 0; transform: translateX(-50%); border-left: 15px solid transparent; border-right: 15px solid transparent; border-top: 30px solid var(--coral); filter: drop-shadow(0 3px 0 rgba(0,0,0,0.5)); }
+.phase-3 .smoke-char, .phase-4 .smoke-char { width: min(34vw, 140px); transition: width 0.5s; }
+.smoke-nums { display: none; }
+:root[data-motion="reduced"] .wheel-wrap { opacity: 1; transform: none; transition: none; }
+:root[data-motion="reduced"] .wheel.spinning { transition: none; }

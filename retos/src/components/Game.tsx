@@ -159,7 +159,7 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
         </div>
       </main>
 
-      {view.smoke && <SmokeRoulette key={view.smoke.id} view={view} onNext={(id, skipped) => send({ type: "smokeNext", id, skipped })} />}
+      {view.smoke && <SmokeRoulette key={view.smoke.id} view={view} onNext={(id) => send({ type: "smokeNext", id })} />}
 
       {showReveal && turn && reveal && <Reveal key={reveal.key} kind={reveal.kind} turn={turn} holderName={holderName} onClose={markSeen} />}
 
@@ -189,7 +189,7 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
                 <h2 className="h1">Historial</h2>
                 {view.history.length === 0 ? <p className="muted">Todavía no se resolvió ningún reto.</p> : (
                   <ol className="history">{view.history.map((h) => (
-                    h.smoke ? <li key={h.id}><p className="eyebrow">Ruleta de humo</p><p><strong>{h.smoke.name}</strong>: {h.smoke.skipped ? "pasó" : `${h.smoke.count} ${h.smoke.count === 1 ? "seca" : "secas"}`}</p></li> :
+                    h.smoke ? <li key={h.id}><p className="eyebrow">Ruleta de humo</p><p><strong>{h.smoke.name}</strong>: {h.smoke.count} {h.smoke.count === 1 ? "seca" : "secas"}</p></li> :
                     <li key={h.id}>
                       <p className="eyebrow">Ronda {h.round} · reto {h.n}{h.tied ? " · salió por sorteo" : ""}</p>
                       <p><strong>{h.subjects.join(" + ")}</strong>: {h.challenge}</p>

@@ -231,12 +231,14 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await pages.Ana.waitForTimeout(900); await shot("Ana", "ruleta-1-humo");
   await pages.Ana.waitForTimeout(2200); await shot("Ana", "ruleta-2-personaje-y-nombre");
   check(await pages.Ana.getByText(/Cuántas secas va a dar/).first().isVisible(), "el título dice “¿Cuántas secas va a dar (nombre)?”");
-  await pages.Ana.getByRole("button", { name: /^Seguir$/ }).waitFor({ timeout: 40000 });
+  check((await pages.Ana.locator(".wheel").count()) === 1, "es una rueda (ruleta) que gira");
+  await pages.Ana.getByRole("button", { name: /Hacelo cagón$/ }).waitFor({ timeout: 40000 });
   await shot("Ana", "ruleta-3-resultado");
-  let pasos = 0; for (const n of NAMES) pasos += await pages[n].getByRole("button", { name: /Paso \(no me toca\)/ }).count();
-  check(pasos === 1, "solo la persona elegida ve el botón “Paso”");
-  check(/da [1-5] secas?/.test(await pages.Ana.locator(".smoke-result").innerText()), "el resultado es un número del 1 al 5");
-  await pages.Ana.getByRole("button", { name: /^Seguir$/ }).click();
+  let pasos = 0; for (const n of NAMES) pasos += await pages[n].getByRole("button", { name: /Paso/ }).count();
+  check(pasos === 0, "no hay botón para pasar: es obligatorio");
+  check((await pages.Ana.getByRole("button", { name: /^Seguir$/ }).count()) === 0, "el botón no dice “Seguir”: dice “Hacelo cagón”");
+  check(/da [1-5] secas?\. Es obligatorio/.test(await pages.Ana.locator(".smoke-result").innerText()), "el resultado es un número del 1 al 5");
+  await pages.Ana.getByRole("button", { name: /Hacelo cagón$/ }).click();
   for (const n of NAMES) await pages[n].locator(".smoke-ov").waitFor({ state: "detached", timeout: 15000 });
   check(true, "al seguir, la ruleta se cierra en todos y el juego continúa");
 
