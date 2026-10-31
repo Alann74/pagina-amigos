@@ -47,3 +47,10 @@ Producción: definir `DATABASE_URL` (Postgres/Neon). La tabla `rooms` se crea so
 - Si alguien se desconecta, el anfitrión puede cerrar votaciones, saltear al titular o continuar sin esperar retos; no hay temporizadores automáticos.
 - Sin parejas, equipos ni retos en cadena (ampliaciones futuras). Sin apuestas ni pagos.
 - Los sonidos son sintetizados (WebAudio); en iOS suenan recién después del primer toque.
+
+## Publicar en Vercel
+1. Vercel → *Add New → Project* → importar este repo. **Root Directory: `retos`**, framework Next.js.
+2. *Settings → Environment Variables*: `DATABASE_URL` (cadena de Neon, región sa-east-1 como `regions: ["gru1"]` de `vercel.json`). No definir `RETOS_TEST_MODE`.
+3. *Settings → Deployment Protection*: desactivar Vercel Authentication para que los invitados entren sin cuenta.
+4. Deploy. La tabla `rooms` se crea sola en el primer uso.
+5. Verificación: `BASE_URL=https://TU-DOMINIO node tests/e2e/partida.cjs` (el escenario con comodines de prueba requiere `RETOS_TEST_MODE=1`; en producción conviene jugar una partida real).
