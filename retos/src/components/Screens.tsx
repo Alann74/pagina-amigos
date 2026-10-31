@@ -83,7 +83,7 @@ export function Lobby({ c }: { c: Ctx }) {
   const url = typeof window !== "undefined" ? `${location.origin}/sala/${view.code}` : "";
   useEffect(() => {
     if (!url) return;
-    QRCode.toDataURL(url, { margin: 1, width: 240, color: { dark: "#191329", light: "#FFF4E6" } }).then(setQr).catch(() => {});
+    QRCode.toDataURL(url, { margin: 1, width: 240, color: { dark: "#17100D", light: "#FFF1E0" } }).then(setQr).catch(() => {});
   }, [url]);
   const share = async () => {
     try {
@@ -107,7 +107,7 @@ export function Lobby({ c }: { c: Ctx }) {
       <DidYouKnow />
 
       <div className="panel">
-        <h2 className="h2">En la sala <span className="count">{view.players.length}</span></h2>
+        <h2 className="h2">En la sala <span className="count">{view.players.length}/{LIMITS.maxPlayers}</span></h2>
         <ul className="pills">{view.players.map((p, i) => <Pill key={p.id} p={p} i={i} extra={view.me.isHost && !p.isHost && (
           <button className="pill-x" aria-label={`Sacar a ${p.name}`} onClick={() => send({ type: "kick", playerId: p.id })}><Icon name="x" size={14} /></button>)} />)}</ul>
       </div>

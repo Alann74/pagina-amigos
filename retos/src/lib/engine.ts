@@ -136,7 +136,7 @@ export function addPlayer(room: Room, rawName: string, now: number) {
   const name = cleanText(rawName, LIMITS.name);
   if (!name) throw new GameError("name", "Elegí un nombre.");
   if (room.phase === "ended") throw new GameError("ended", "Esta partida ya terminó.");
-  if (room.players.length >= LIMITS.maxPlayers) throw new GameError("full", "La sala está llena.");
+  if (room.players.length >= LIMITS.maxPlayers) throw new GameError("full", `La sala está llena (máximo ${LIMITS.maxPlayers} jugadores).`);
   if (room.players.some((p) => p.name.toLowerCase() === name.toLowerCase())) throw new GameError("name_taken", "Ese nombre ya está en uso en la sala.", 409);
   const token = randomBytes(24).toString("hex");
   const p = newPlayer(name, token, now);

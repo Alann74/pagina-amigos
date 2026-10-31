@@ -113,4 +113,4 @@ export type Action =
   | { type: "end" }
   | { type: "kick"; playerId: string };
 
-export const LIMITS = { name: 20, challenge: 140, alt: 140, maxPlayers: 16, minPlayers: 3 } as const;
+export const LIMITS = { name: 20, challenge: 140, alt: 140, maxPlayers: 15, minPlayers: 3 } as const;

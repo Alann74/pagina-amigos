@@ -43,7 +43,7 @@ export const JOKER_INFO = {
 
 export function Confetti() {
   const pieces = Array.from({ length: 28 }, (_, i) => i);
-  const colors = ["#FF6B6B", "#FFD166", "#FFF4E6", "#7EE0B5", "#B79CFF"];
+  const colors = ["#E31E26", "#FF9E2C", "#FFF1E0", "#F3C79C", "#8EE0A4"];
   return (
     <div className="confetti" aria-hidden="true">
       {pieces.map((i) => (

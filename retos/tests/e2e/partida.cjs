@@ -14,6 +14,8 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
 
 (async () => {
   const browser = await chromium.launch();
+  const rawNewContext = browser.newContext.bind(browser); // sin pantalla de entrada en el resto de las pruebas
+  browser.newContext = async (o) => { const c = await rawNewContext(o); await c.addInitScript(() => { try { sessionStorage.setItem("retos:splash", "1"); } catch {} }); return c; };
   const ctxOpts = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: "es-AR" };
   const ctxs = {}, pages = {};
   for (const n of NAMES) { ctxs[n] = await browser.newContext(ctxOpts); pages[n] = await ctxs[n].newPage(); pages[n].on("pageerror", (e) => check(false, `error de página en ${n}: ${e.message}`)); }
@@ -22,6 +24,21 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   const btn = (n, re) => pages[n].getByRole("button", { name: re }).first();
   const click = async (n, re) => { const b = btn(n, re); await b.waitFor({ state: "visible", timeout: 15000 }); await b.click(); };
   const text = (n, re) => pages[n].getByText(re).first().waitFor({ state: "visible", timeout: 15000 });
+
+  // 0. Pantalla de entrada: mono con humo y sonrisa; se cierra al tocar
+  {
+    const c = await rawNewContext(ctxOpts); const sp = await c.newPage();
+    await sp.goto(BASE); await sp.locator(".splash .mascot-wrap").waitFor();
+    await sp.waitForTimeout(1500); await sp.screenshot({ path: path.join(SHOTS, "00-splash.png") });
+    check(await sp.locator(".splash-logo").isVisible(), "al entrar aparece el logo del mono");
+    check(await sp.locator(".splash .puff-i").first().evaluate((e) => parseFloat(getComputedStyle(e).opacity) > 0), "sale humo del cigarrillo (animado)");
+    check(await sp.locator(".splash .grin").evaluate((e) => parseFloat(getComputedStyle(e).opacity) > 0.5), "el mono sonríe (sonrisa grande visible)");
+    await sp.locator(".splash").click(); await sp.locator(".splash").waitFor({ state: "detached" });
+    check(true, "la pantalla de entrada se cierra al tocar y no vuelve en la sesión");
+    await sp.reload(); await sp.waitForTimeout(600);
+    check((await sp.locator(".splash").count()) === 0, "no se repite al recargar en la misma sesión");
+    await c.close();
+  }
 
   // 1. Crear sala y entrar por enlace
   const host = pages.Ana;

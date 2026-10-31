@@ -276,3 +276,20 @@ test("saltear al titular ausente y cerrar votación de prenda por el anfitrión"
   act(room, host, { type: "altClose", turnKey: t.key });
   assert.equal(turn(room).stage, "confirming");
 });
+
+test("límite de 15 jugadores por sala", () => {
+  const { room } = createRoom("J1", NOW, "BCDK", rng);
+  for (let i = 2; i <= 15; i++) addPlayer(room, `J${i}`, NOW);
+  assert.equal(room.players.length, 15);
+  throwsCode(() => addPlayer(room, "J16", NOW), "full");
+  assert.equal(room.players.length, 15);
+});
+
+test("con 15 jugadores la ronda reparte 15 cartas y 15 retos", () => {
+  const names = Array.from({ length: 15 }, (_, i) => `P${i + 1}`);
+  const { room, ids } = setup(names, 2);
+  assert.equal(room.roundSize, 15);
+  assert.equal(turn(room).cards.length, 15);
+  assert.equal(new Set(turn(room).cards).size, 15);
+  assert.equal(ids.length, 15);
+});

@@ -8,6 +8,8 @@ const NAMES = ["Ana", "Beto", "Cami"]; let bad = 0;
 const check = (ok, m) => { console.log(ok ? "  ✔" : "  ✘ FALLA:", m); if (!ok) bad++; };
 (async () => {
   const browser = await chromium.launch();
+  const rawNewContext = browser.newContext.bind(browser); // sin pantalla de entrada en el resto de las pruebas
+  browser.newContext = async (o) => { const c = await rawNewContext(o); await c.addInitScript(() => { try { sessionStorage.setItem("retos:splash", "1"); } catch {} }); return c; };
   const o = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: "es-AR" };
   const P = {}; for (const n of NAMES) P[n] = await (await browser.newContext(o)).newPage();
   const shot = (n, f) => P[n].screenshot({ path: path.join(SHOTS, f + ".png") });
