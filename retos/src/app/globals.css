@@ -328,3 +328,17 @@ button.card-back:not(:disabled):hover { box-shadow: 0 10px 0 rgba(0,0,0,.45), 0 
 @keyframes toastIn { from { opacity: 0; transform: translateY(24px) scale(0.9); } }
 .sheet-backdrop { animation: fade 0.25s both; }
 .pause .panel { animation: pop 0.4s both; }
+
+/* Datos curiosos */
+.fact { border-color: var(--yellow); display: grid; gap: 10px; }
+.fact-next { min-height: 40px; padding: 4px 14px; font-size: 0.9rem; }
+.fact-body { min-height: 8.2em; animation: factIn 0.5s cubic-bezier(.2,1.2,.4,1) both; }
+@keyframes factIn { from { opacity: 0; transform: translateY(14px) rotate(-0.6deg); } }
+.fact-text { margin: 0 0 8px; font-size: 1.2rem; line-height: 1.28; font-weight: 700; overflow-wrap: anywhere; }
+.fact-src { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.fact-src a { color: var(--yellow); text-underline-offset: 3px; }
+.fact-bar { height: 4px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.fact-bar i { display: block; height: 100%; background: var(--yellow); transform-origin: left; animation: factbar linear both; }
+@keyframes factbar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+:root[data-motion="reduced"] .fact-bar { display: none; }
+@media (prefers-reduced-motion: reduce) { .fact-bar { display: none; } }

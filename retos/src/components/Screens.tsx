@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
+import { FACTS } from "@/lib/facts";
 import { sfx } from "@/lib/sfx";
 import { LIMITS } from "@/lib/types";
 import type { Action, RoomView, ViewPlayer, ViewTurn } from "@/lib/types";
@@ -43,6 +44,38 @@ function Pill({ p, extra, i = 0 }: { p: ViewPlayer; extra?: React.ReactNode; i?:
   );
 }
 
+// ---------------- Datos curiosos (sala de espera) ----------------
+const FACT_MS = 11000;
+function DidYouKnow() {
+  const [order, setOrder] = useState<number[]>([]);
+  const [i, setI] = useState(0);
+  useEffect(() => { // orden al azar distinto en cada celular (solo en el cliente)
+    const o = FACTS.map((_, k) => k);
+    for (let k = o.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [o[k], o[j]] = [o[j], o[k]]; }
+    setOrder(o);
+  }, []);
+  useEffect(() => {
+    if (!order.length) return;
+    const t = setTimeout(() => setI((x) => x + 1), FACT_MS);
+    return () => clearTimeout(t);
+  }, [order, i]);
+  if (!order.length) return null;
+  const f = FACTS[order[i % order.length]];
+  return (
+    <div className="panel fact" role="region" aria-label="Dato curioso">
+      <div className="row between">
+        <p className="eyebrow" style={{ margin: 0 }}><Icon name="star" size={14} /> ¿Sabías que…?</p>
+        <button type="button" className="btn btn-ghost fact-next" onClick={() => { sfx.tap(); setI((x) => x + 1); }}>Otro dato<Icon name="swap" size={16} /></button>
+      </div>
+      <div key={i} className="fact-body">
+        <p className="fact-text">{f.text}</p>
+        <p className="fact-src">Fuente: <a href={f.url} target="_blank" rel="noopener noreferrer">{f.source}</a></p>
+      </div>
+      <div key={`b${i}`} className="fact-bar" aria-hidden="true"><i style={{ animationDuration: `${FACT_MS}ms` }} /></div>
+    </div>
+  );
+}
+
 // ---------------- Sala de espera ----------------
 export function Lobby({ c }: { c: Ctx }) {
   const { view, send, busy } = c;
@@ -68,8 +101,10 @@ export function Lobby({ c }: { c: Ctx }) {
           <button className="btn btn-secondary" onClick={share}><Icon name="share" />Compartir enlace</button>
           <button className="btn btn-ghost" onClick={() => navigator.clipboard?.writeText(url).then(() => c.toast("Enlace copiado")).catch(() => {})}><Icon name="copy" />Copiar</button>
         </div>
-        {qr && <img className="qr" src={qr} width={140} height={140} alt={`Código QR para entrar a la sala ${view.code}`} />}
+        {qr && view.me.isHost && <img className="qr" src={qr} width={140} height={140} alt={`Código QR para entrar a la sala ${view.code}`} />}
       </div>
+
+      <DidYouKnow />
 
       <div className="panel">
         <h2 className="h2">En la sala <span className="count">{view.players.length}</span></h2>
