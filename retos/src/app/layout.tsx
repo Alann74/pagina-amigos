@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Boca Abajo", statusBarStyle: "black-translucent" },
   description: "Juego de retos para jugar con amigos desde el celular: cartas boca abajo, votación en secreto y una revelación con suspenso.",
 };
-export const viewport: Viewport = { themeColor: "#17100D", width: "device-width", initialScale: 1, viewportFit: "cover" };
+export const viewport: Viewport = { themeColor: "#191329", width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

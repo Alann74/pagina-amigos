@@ -91,7 +91,7 @@ export function Lobby({ c }: { c: Ctx }) {
   const url = typeof window !== "undefined" ? `${location.origin}/sala/${view.code}` : "";
   useEffect(() => {
     if (!url) return;
-    QRCode.toDataURL(url, { margin: 1, width: 240, color: { dark: "#17100D", light: "#FFF1E0" } }).then(setQr).catch(() => {});
+    QRCode.toDataURL(url, { margin: 1, width: 240, color: { dark: "#191329", light: "#FFF4E6" } }).then(setQr).catch(() => {});
   }, [url]);
   const share = async () => {
     try {
