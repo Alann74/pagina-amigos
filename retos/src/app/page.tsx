@@ -37,6 +37,8 @@ export default function Home() {
     <main className="page home">
       <header className="hero">
         <div className="hero-cards" aria-hidden="true"><i /><i /><i /></div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="mascot" src="/logo.png" width={150} height={150} alt="Mono con gorra y anteojos, la mascota de Boca Abajo" />
         <h1 className="logo" aria-label="Boca Abajo">
           <span aria-hidden="true">{Array.from("Boca").map((ch, i) => <b key={i} style={{ ["--i" as string]: i }}>{ch}</b>)}</span>
           <span aria-hidden="true">{Array.from("Abajo").map((ch, i) => <b key={i} style={{ ["--i" as string]: i + 4 }}>{ch}</b>)}</span>

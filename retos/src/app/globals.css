@@ -342,3 +342,8 @@ button.card-back:not(:disabled):hover { box-shadow: 0 10px 0 rgba(0,0,0,.45), 0 
 @keyframes factbar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 :root[data-motion="reduced"] .fact-bar { display: none; }
 @media (prefers-reduced-motion: reduce) { .fact-bar { display: none; } }
+
+/* Mascota */
+.mascot { display: block; margin: 8px auto -6px; width: min(42vw, 170px); height: auto; filter: drop-shadow(0 8px 0 rgba(0,0,0,0.35)); animation: mascot 0.8s cubic-bezier(.2,1.6,.4,1) 0.2s backwards, bob 4s ease-in-out 1.2s infinite; position: relative; z-index: 2; }
+@keyframes mascot { from { opacity: 0; transform: translateY(40px) scale(0.5) rotate(-12deg); } }
+.hero-cards { display: none; }
