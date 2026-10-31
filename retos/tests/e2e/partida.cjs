@@ -74,9 +74,8 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   check((await pages.Beto.locator("details.qr-box").count()) === 1, "el QR está disponible (plegado)");
   check((await pages.Ana.getByText(/Anfitri/).count()) === 0 && (await pages.Beto.getByText(/Anfitri/).count()) === 0, "no hay anfitrión: nadie tiene rol especial");
   check((await btn("Beto", /Estoy listo/).count()) === 1 && (await btn("Ana", /Estoy listo/).count()) === 1, "quien creó la sala también tiene que tocar “listo” como los demás");
-  for (const n of ["Ana", "Beto", "Cami"]) await pages[n].getByRole("switch", { name: /Ruleta de humo/ }).click();   // 3 de 4 votan sí: se activa
-  await pages.Dani.getByText(/\(activada\)/).waitFor({ timeout: 15000 });
-  check(true, "la ruleta de humo (+18) se activa por mayoría en la sala de espera");
+  check((await pages.Dani.getByRole("switch", { name: /Ruleta de humo/ }).count()) === 0, "la ruleta de humo ya no es opcional: no hay interruptor");
+  check(await pages.Dani.getByText(/Es obligatorio/).first().isVisible(), "la sala de espera avisa que la ruleta es obligatoria y +18");
   await click("Ana", /Estoy listo/); await click("Beto", /Estoy listo/); await click("Cami", /Estoy listo/);
   await pages.Ana.waitForTimeout(1500);
   check((await pages.Ana.getByLabel("Escribí tu reto en privado").count()) === 0, "con 3 de 4 listos no arranca");

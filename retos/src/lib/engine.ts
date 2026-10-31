@@ -87,8 +87,6 @@ export interface Room {
   paused: boolean;
   pausedBy: string | null;
   endVotes: string[];
-  smokeVotes: string[]; // quiénes quieren la ruleta de humo (+18); se activa si votan más de la mitad
-  smokeOn: boolean;
   turnsDone: number;
   smoke: { id: string; playerId: string; count: number; at: number } | null;
   round: number;
@@ -146,7 +144,7 @@ export function createRoom(creatorName: string, now: number, code: string) {
   const token = randomBytes(24).toString("hex");
   const first = newPlayer(name, token, now);
   const room: Room = {
-    code, createdAt: now, phase: "lobby", phaseAt: now, clock: now, paused: false, pausedBy: null, endVotes: [], smokeVotes: [], smokeOn: false, turnsDone: 0, smoke: null,
+    code, createdAt: now, phase: "lobby", phaseAt: now, clock: now, paused: false, pausedBy: null, endVotes: [], turnsDone: 0, smoke: null,
     round: 0, roundSize: 0, resolved: 0, pool: [], players: [first], turn: null, history: [], summary: null, seq: 0,
   };
   return { room, token, playerId: first.id };
@@ -208,7 +206,7 @@ function startRound(room: Room, fromLobby: boolean, rng: Rng, exclude: Set<strin
     p.challenge = null;
     p.round = zero();
   }
-  if (fromLobby) { room.smokeOn = room.smokeVotes.filter((id) => getPlayer(room, id)).length * 2 > room.players.length; room.turnsDone = 0; room.smoke = null; }
+  if (fromLobby) { room.turnsDone = 0; room.smoke = null; }
   // Comodines iniciales: 1 o 2 en total, repartidos y de tipo al azar.
   if (fromLobby) { const n = 1 + rng.int(2); for (let i = 0; i < n; i++) dealJoker(room, rng); }
 }
@@ -353,7 +351,7 @@ function finishTurn(room: Room, outcome: "ok" | "fail", rng: Rng) {
     startTurn(room, rng);
   }
   // Ruleta de humo: cada SMOKE_EVERY retos, el azar elige a alguien y cuántas "secas" (1 a 5). Todos la ven antes de seguir.
-  if (room.smokeOn && room.turnsDone % SMOKE_EVERY === 0) {
+  if (room.turnsDone % SMOKE_EVERY === 0) {
     const act = activePlayers(room);
     if (act.length) room.smoke = { id: newId(3), playerId: act[rng.int(act.length)].id, count: 1 + rng.int(5), at: room.clock };
   }
@@ -407,7 +405,7 @@ export function applyAction(
   if (a.type === "rematch") {
     if (room.phase !== "ended") throw new GameError("wrong_phase", "La partida todavía no terminó.", 409);
     // Revancha: misma sala y mismos jugadores, todo en cero; vuelven a tocar "listo".
-    Object.assign(room, { phase: "lobby", phaseAt: now, paused: false, pausedBy: null, endVotes: [], smokeVotes: [], smokeOn: false, turnsDone: 0, smoke: null, round: 0, roundSize: 0, resolved: 0, pool: [], turn: null, history: [], summary: null });
+    Object.assign(room, { phase: "lobby", phaseAt: now, paused: false, pausedBy: null, endVotes: [], turnsDone: 0, smoke: null, round: 0, roundSize: 0, resolved: 0, pool: [], turn: null, history: [], summary: null });
     for (const p of room.players) Object.assign(p, { active: true, ready: false, jokers: [], total: zero(), round: zero(), challenge: null });
     return;
   }
@@ -416,14 +414,6 @@ export function applyAction(
   if (room.smoke && a.type !== "smokeNext") throw new GameError("smoke", "Hay una ruleta de humo en curso: esperá a que termine.", 409);
 
   switch (a.type) {
-    case "smokeVote": {
-      if (room.phase !== "lobby") throw new GameError("wrong_phase", "La ruleta de humo se decide en la sala de espera.", 409);
-      room.smokeVotes = room.smokeVotes.filter((id) => getPlayer(room, id));
-      const has = room.smokeVotes.includes(me.id);
-      if (a.on && !has) room.smokeVotes.push(me.id);
-      if (!a.on && has) room.smokeVotes = room.smokeVotes.filter((id) => id !== me.id);
-      return;
-    }
     case "smokeNext": {
       const sm = room.smoke;
       if (!sm || sm.id !== a.id) throw new GameError("stale", "Esa ruleta ya terminó.", 409);

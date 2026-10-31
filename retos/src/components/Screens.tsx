@@ -127,10 +127,8 @@ export function Lobby({ c }: { c: Ctx }) {
       </div>
 
       <div className="panel smoke-opt">
-        <button className="toggle" role="switch" aria-checked={view.me.smokeVote} disabled={busy} onClick={() => send({ type: "smokeVote", on: !view.me.smokeVote })}>
-          <span>Ruleta de humo (+18)</span><b>{view.me.smokeVote ? "Voto: sí" : "Voto: no"}</b>
-        </button>
-        <p className="muted small" style={{ margin: "8px 0 0" }}>Cada {SMOKE_EVERY} retos, una ruleta elige a alguien al azar y cuántas “secas” da (1 a 5). Solo para mayores de edad y donde sea legal. Es obligatorio: a quien le toca, lo hace. Se activa si más de la mitad vota que sí: {view.smokeVotes} de {view.players.length}{view.smokeVotes * 2 > view.players.length ? " (activada)" : ""}.</p>
+        <h2 className="h2">Ruleta de humo (+18)</h2>
+        <p className="muted small" style={{ margin: 0 }}>Cada {SMOKE_EVERY} retos, una ruleta elige a alguien al azar y cuántas “secas” da (1 a 5). Es obligatorio: a quien le toca, lo hace. Solo para mayores de edad y donde sea legal. Si no querés jugar así, podés irte de la sala antes de empezar.</p>
       </div>
 
       <div className="dock stack-tight">

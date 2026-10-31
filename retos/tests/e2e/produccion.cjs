@@ -41,6 +41,9 @@ const check = (ok, m) => { console.log(ok ? "  ✔" : "  ✘ FALLA:", m); if (!o
     if (t === 3) { await click(h, /Retirarme del reto/); await click(h, /Sí, me retiro/); }
     await clickAny(/Confirmar y seguir/);   // lo confirma el árbitro sorteado
   }
+  for (const n of NAMES) await P[n].locator(".smoke-ov").waitFor({ timeout: 20000 });   // ruleta de humo tras el 3.er reto
+  await P.Ana.getByRole("button", { name: /Hacelo cagón$/ }).waitFor({ timeout: 40000 }); check(true, "ruleta de humo con botón “Hacelo cagón”");
+  await P.Ana.getByRole("button", { name: /Hacelo cagón$/ }).click();
   await see("Ana", /Ronda 1 terminada/); await shot("Ana", "p5-resumen");
   check((await P.Ana.locator("table tbody tr").count()) === 3, "ronda de 3 jugadores = 3 retos resueltos y resumen");
   await P.Beto.reload(); await see("Beto", /Ronda 1 terminada/); check(true, "reconexión tras recargar mantiene identidad y partida");

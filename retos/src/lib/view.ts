@@ -50,8 +50,8 @@ export function buildView(room: Room, viewerId: string, now: number, presence: R
   }));
   return {
     code: room.code, version, serverNow: now, phase: room.phase, phaseAt: room.phaseAt, paused: room.paused,
-    pausedBy: room.pausedBy, smokeOn: room.smokeOn, smokeVotes: room.smokeVotes.filter((id) => getPlayer(room, id)).length, smoke: room.smoke, round: room.round, roundSize: room.roundSize, resolved: room.resolved,
-    me: { id: me.id, name: me.name, smokeVote: room.smokeVotes.includes(me.id), active: me.active, ready: me.ready, endVote: room.endVotes.includes(me.id), jokers: me.jokers, myChallenge: me.challenge },
+    pausedBy: room.pausedBy, smoke: room.smoke, round: room.round, roundSize: room.roundSize, resolved: room.resolved,
+    me: { id: me.id, name: me.name, active: me.active, ready: me.ready, endVote: room.endVotes.includes(me.id), jokers: me.jokers, myChallenge: me.challenge },
     players, writtenCount: act.filter((p) => p.challenge).length, activeCount: act.length,
     readyCount: room.players.filter((p) => p.ready).length,
     canStart: me.ready && canProceed(room, isConnected),
