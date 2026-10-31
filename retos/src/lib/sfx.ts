@@ -25,6 +25,7 @@ function tone(freq: number, start: number, dur: number, type: OscillatorType = "
 }
 function buzz(ms: number) { if (enabled && typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); }
 export const sfx = {
+  thump() { tone(95, 0, 0.35, "sine", 0.26, 38); tone(180, 0, 0.08, "square", 0.05, 60); },
   smoke() { // ráfaga de humo: ruido filtrado que sube y se apaga
     const c = ac(); if (!c) return;
     const len = Math.floor(c.sampleRate * 2.2), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
