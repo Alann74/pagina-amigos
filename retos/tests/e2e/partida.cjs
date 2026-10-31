@@ -74,6 +74,9 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   check((await pages.Beto.locator("details.qr-box").count()) === 1, "el QR está disponible (plegado)");
   check((await pages.Ana.getByText(/Anfitri/).count()) === 0 && (await pages.Beto.getByText(/Anfitri/).count()) === 0, "no hay anfitrión: nadie tiene rol especial");
   check((await btn("Beto", /Estoy listo/).count()) === 1 && (await btn("Ana", /Estoy listo/).count()) === 1, "quien creó la sala también tiene que tocar “listo” como los demás");
+  for (const n of ["Ana", "Beto", "Cami"]) await pages[n].getByRole("switch", { name: /Ruleta de humo/ }).click();   // 3 de 4 votan sí: se activa
+  await pages.Dani.getByText(/\(activada\)/).waitFor({ timeout: 15000 });
+  check(true, "la ruleta de humo (+18) se activa por mayoría en la sala de espera");
   await click("Ana", /Estoy listo/); await click("Beto", /Estoy listo/); await click("Cami", /Estoy listo/);
   await pages.Ana.waitForTimeout(1500);
   check((await pages.Ana.getByLabel("Escribí tu reto en privado").count()) === 0, "con 3 de 4 listos no arranca");
@@ -221,6 +224,21 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await click(h3, /Retirarme del reto/);
   await click(h3, /Sí, me retiro/);
   await clickAny(/Confirmar y seguir/);
+
+  // 5b. Ruleta de humo (activada por mayoría): sale tras el 3.er reto, en todos los celulares
+  for (const n of NAMES) await pages[n].locator(".smoke-ov").waitFor({ timeout: 20000 });
+  check(true, "la ruleta de humo aparece en los 4 celulares tras el 3.er reto");
+  await pages.Ana.waitForTimeout(900); await shot("Ana", "ruleta-1-humo");
+  await pages.Ana.waitForTimeout(2200); await shot("Ana", "ruleta-2-personaje-y-nombre");
+  check(await pages.Ana.getByText(/Cuántas secas va a dar/).first().isVisible(), "el título dice “¿Cuántas secas va a dar (nombre)?”");
+  await pages.Ana.getByRole("button", { name: /^Seguir$/ }).waitFor({ timeout: 40000 });
+  await shot("Ana", "ruleta-3-resultado");
+  let pasos = 0; for (const n of NAMES) pasos += await pages[n].getByRole("button", { name: /Paso \(no me toca\)/ }).count();
+  check(pasos === 1, "solo la persona elegida ve el botón “Paso”");
+  check(/da [1-5] secas?/.test(await pages.Ana.locator(".smoke-result").innerText()), "el resultado es un número del 1 al 5");
+  await pages.Ana.getByRole("button", { name: /^Seguir$/ }).click();
+  for (const n of NAMES) await pages[n].locator(".smoke-ov").waitFor({ state: "detached", timeout: 15000 });
+  check(true, "al seguir, la ruleta se cierra en todos y el juego continúa");
 
   // 6. Turno 4: cumplir pero el anfitrión marca que no lo cumplió → fin de ronda
   await text("Ana", /Turno 4 de 4/);

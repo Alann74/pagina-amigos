@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { FACTS } from "@/lib/facts";
 import { IDEAS } from "@/lib/ideas";
 import { sfx } from "@/lib/sfx";
-import { IDLE_MS, LIMITS } from "@/lib/types";
+import { IDLE_MS, LIMITS, SMOKE_EVERY } from "@/lib/types";
 import type { Action, RoomView, ViewPlayer, ViewTurn } from "@/lib/types";
 import { CardBack, Confetti, JOKER_INFO, JokerChip } from "./Cards";
 import { Icon } from "./Icon";
@@ -124,6 +124,13 @@ export function Lobby({ c }: { c: Ctx }) {
         <ul className="pills">{view.players.map((p, i) => <Pill key={p.id} p={p} i={i} extra={
           <span className={`pill-badge ${p.ready ? "ok" : "muted"}`}>{p.ready ? <><Icon name="check" size={13} />listo</> : <><Icon name="clock" size={13} />pensando</>}</span>} />)}</ul>
         <p className="muted small" style={{ marginBottom: 0 }}>Sin anfitrión: todos juegan y el azar decide. Al empezar se reparten 1 o 2 comodines al azar.</p>
+      </div>
+
+      <div className="panel smoke-opt">
+        <button className="toggle" role="switch" aria-checked={view.me.smokeVote} disabled={busy} onClick={() => send({ type: "smokeVote", on: !view.me.smokeVote })}>
+          <span>Ruleta de humo (+18)</span><b>{view.me.smokeVote ? "Voto: sí" : "Voto: no"}</b>
+        </button>
+        <p className="muted small" style={{ margin: "8px 0 0" }}>Cada {SMOKE_EVERY} retos, una ruleta elige a alguien al azar y cuántas “secas” da (1 a 5). Solo para mayores de edad y donde sea legal. La persona elegida siempre puede pasar. Se activa si más de la mitad vota que sí: {view.smokeVotes} de {view.players.length}{view.smokeVotes * 2 > view.players.length ? " (activada)" : ""}.</p>
       </div>
 
       <div className="dock stack-tight">

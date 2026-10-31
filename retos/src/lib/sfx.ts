@@ -25,6 +25,15 @@ function tone(freq: number, start: number, dur: number, type: OscillatorType = "
 }
 function buzz(ms: number) { if (enabled && typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); }
 export const sfx = {
+  smoke() { // ráfaga de humo: ruido filtrado que sube y se apaga
+    const c = ac(); if (!c) return;
+    const len = Math.floor(c.sampleRate * 2.2), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = buf; f.type = "lowpass"; f.frequency.setValueAtTime(300, c.currentTime); f.frequency.exponentialRampToValueAtTime(2200, c.currentTime + 1.4);
+    g.gain.setValueAtTime(0.0001, c.currentTime); g.gain.exponentialRampToValueAtTime(0.16, c.currentTime + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 2.1);
+    src.connect(f).connect(g).connect(c.destination); src.start();
+  },
   tick(i = 0) { tone(360 + Math.min(i, 24) * 38, 0, 0.05, "square", 0.035); },
   pop() { tone(480, 0, 0.07, "sine", 0.06, 880); buzz(8); },
   unlock() { ac(); },

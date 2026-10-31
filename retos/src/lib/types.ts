@@ -7,6 +7,8 @@ export type ResolutionKind = "done" | "alt" | "withdraw";
 
 export const IDLE_MS = 45000; // tras este tiempo sin respuesta, cualquiera puede destrabar
 export const PRESENCE_MS = 15000;
+export const SMOKE_EVERY = 3; // la ruleta de humo (si el grupo la activó) sale cada 3 retos resueltos
+export const SMOKE_MIN_MS = 9000; // lo que dura la animación; antes no se puede seguir
 
 export interface ViewPlayer {
   id: string;
@@ -59,6 +61,7 @@ export interface ViewTurn {
 }
 
 export interface HistoryEntry {
+  smoke?: { name: string; count: number; skipped: boolean };
   id: number;
   round: number;
   n: number;
@@ -89,9 +92,13 @@ export interface RoomView {
   round: number;
   roundSize: number;
   resolved: number;
+  smokeOn: boolean;
+  smokeVotes: number;
+  smoke: { id: string; playerId: string; count: number; at: number } | null;
   me: {
     id: string;
     name: string;
+    smokeVote: boolean;
     active: boolean;
     ready: boolean;
     endVote: boolean;
@@ -130,6 +137,8 @@ export type Action =
   | { type: "resume" }
   | { type: "voteEnd"; on: boolean }
   | { type: "leave" }
-  | { type: "rematch" };
+  | { type: "rematch" }
+  | { type: "smokeVote"; on: boolean }
+  | { type: "smokeNext"; id: string; skipped?: boolean };
 
 export const LIMITS = { name: 20, challenge: 140, alt: 140, maxPlayers: 15, minPlayers: 3 } as const;

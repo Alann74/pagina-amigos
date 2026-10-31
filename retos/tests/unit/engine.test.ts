@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { GameError, addPlayer, applyAction, canProceed, cleanText, createRoom, getPlayer, reclaimPlayer, tokenMatches } from "../../src/lib/engine";
 import type { Rng, Room } from "../../src/lib/engine";
 import { buildView } from "../../src/lib/view";
-import { IDLE_MS } from "../../src/lib/types";
+import { IDLE_MS, SMOKE_EVERY, SMOKE_MIN_MS } from "../../src/lib/types";
 import type { Action } from "../../src/lib/types";
 
 function seeded(seed: number): Rng {
@@ -467,4 +467,77 @@ test("revancha: misma sala y jugadores, todo en cero, vuelven a estar 'listos'; 
   ids.forEach((id) => act(room, id, { type: "ready", ready: true }));
   assert.equal(room.phase, "writing", "se puede volver a jugar");
   assert.equal(room.round, 1);
+});
+
+/** Sala de 4 donde `votes` jugadores votaron a favor de la ruleta de humo antes de empezar. */
+function setupSmoke(votes: number) {
+  const { room, playerId: first } = createRoom("A", NOW, "BCDS");
+  const ids = [first, ...["B", "C", "D"].map((n) => addPlayer(room, n, NOW).playerId)];
+  ids.slice(0, votes).forEach((id) => act(room, id, { type: "smokeVote", on: true }));
+  ids.forEach((id) => act(room, id, { type: "ready", ready: true }));
+  ids.forEach((id, i) => act(room, id, { type: "submitChallenge", text: `Reto numero ${i + 1}` }));
+  return { room, ids };
+}
+const playTurn = (room: Room, ids: string[]) => {
+  everyoneVotes(room, ids, () => 1);
+  const t = turn(room);
+  act(room, t.holderId!, { type: "fulfill", turnKey: t.key });
+  judgeConfirms(room);
+};
+
+test("ruleta de humo: se activa solo si votan más de la mitad; sale cada 3 retos; elige jugador y 1–5 al azar", () => {
+  const off = setupSmoke(2);                       // 2 de 4 no es mayoría
+  assert.equal(off.room.smokeOn, false);
+  for (let i = 0; i < 3; i++) playTurn(off.room, off.ids);
+  assert.equal(off.room.smoke, null, "apagada: nunca sale");
+
+  const on = setupSmoke(3);
+  assert.equal(on.room.smokeOn, true);
+  for (let i = 0; i < SMOKE_EVERY - 1; i++) playTurn(on.room, on.ids);
+  assert.equal(on.room.smoke, null, "todavía no toca");
+  playTurn(on.room, on.ids);
+  const sm = on.room.smoke!;
+  assert.ok(sm && on.ids.includes(sm.playerId) && sm.count >= 1 && sm.count <= 5);
+  const seenCounts = new Set<number>(), seenPlayers = new Set<string>();
+  for (let sd = 0; sd < 80; sd++) {
+    const g = setupSmoke(3);
+    const r = seeded(sd);
+    for (let i = 0; i < 3; i++) { votePlayers(g.room, g.ids, () => 1); const t = turn(g.room); if (t.stage === "picking") g.ids.filter((id) => id !== t.holderId).forEach((id) => applyAction(g.room, id, { type: "pick", turnKey: t.key, card: 1 }, NOW, r)); applyAction(g.room, t.holderId!, { type: "fulfill", turnKey: t.key }, NOW, r); applyAction(g.room, turn(g.room).judgeId!, { type: "confirm", turnKey: t.key, outcome: "ok" }, NOW, r); }
+    seenCounts.add(g.room.smoke!.count); seenPlayers.add(g.room.smoke!.playerId);
+  }
+  assert.deepEqual([...seenCounts].sort(), [1, 2, 3, 4, 5], "salen todos los números del 1 al 5");
+  assert.ok(seenPlayers.size > 3, "sale gente distinta");
+});
+
+test("ruleta de humo: bloquea el juego hasta que termine la animación; solo el elegido puede pasar; queda en el historial", () => {
+  const { room, ids } = setupSmoke(4);
+  for (let i = 0; i < 3; i++) playTurn(room, ids);
+  const sm = room.smoke!;
+  const key = turn(room).key;
+  throwsCode(() => act(room, ids[0], { type: "vote", turnKey: key, card: 1 }), "smoke");
+  throwsCode(() => act(room, ids[0], { type: "smokeNext", id: sm.id }), "too_early");
+  throwsCode(() => act(room, ids[0], { type: "smokeNext", id: "otro" }, NOW + SMOKE_MIN_MS + 1), "stale");
+  const other = ids.find((i) => i !== sm.playerId)!;
+  act(room, other, { type: "smokeNext", id: sm.id, skipped: true }, NOW + SMOKE_MIN_MS + 1);   // otro intenta "pasar" por él: no vale
+  assert.equal(room.smoke, null);
+  assert.equal(room.history[0].smoke!.skipped, false, "solo la persona elegida puede pasar");
+  assert.equal(room.history[0].smoke!.count, sm.count);
+  const total = room.players.reduce((n, p) => n + p.total.done + p.total.alt + p.total.withdrawn, 0);
+  assert.equal(total, 3, "la ruleta no cuenta como reto");
+  act(room, ids[0], { type: "vote", turnKey: key, card: 1 });                                    // el juego sigue
+});
+
+test("ruleta de humo: la persona elegida puede pasar; se decide solo en la sala de espera; la revancha la apaga", () => {
+  const { room, ids } = setupSmoke(3);
+  throwsCode(() => act(room, ids[0], { type: "smokeVote", on: false }), "wrong_phase");
+  for (let i = 0; i < 3; i++) playTurn(room, ids);
+  const sm = room.smoke!;
+  act(room, sm.playerId, { type: "smokeNext", id: sm.id, skipped: true }, NOW + SMOKE_MIN_MS + 1);
+  assert.equal(room.history[0].smoke!.skipped, true);
+  ids.slice(0, 2).forEach((id) => act(room, id, { type: "voteEnd", on: true }));
+  ids.slice(2, 3).forEach((id) => act(room, id, { type: "voteEnd", on: true }));
+  assert.equal(room.phase, "ended");
+  act(room, ids[0], { type: "rematch" });
+  assert.equal(room.smokeOn, false);
+  assert.deepEqual(room.smokeVotes, []);
 });

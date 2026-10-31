@@ -400,3 +400,37 @@ button.card-back:not(:disabled):hover { box-shadow: 0 10px 0 rgba(0,0,0,.45), 0 
 .cards.dense .card-corner { font-size: 0.85rem; }
 .btn-whatsapp { background: #25D366; color: #0B2B17; border-color: var(--ink); box-shadow: 0 5px 0 #11793A; width: 100%; margin-top: 12px; }
 .idea-btn { min-height: 40px; padding: 4px 14px; font-size: 0.9rem; }
+
+/* ====================  RULETA DE HUMO  ==================== */
+.smoke-opt { border-color: var(--yellow); }
+.smoke-ov { position: fixed; inset: 0; z-index: 90; overflow: hidden; display: grid; place-items: center; padding: 20px; background: rgba(20, 28, 18, 0); animation: smokeBg 1.6s ease-out forwards; }
+@keyframes smokeBg { to { background: rgba(24, 32, 20, 0.94); } }
+.smoke-haze { position: absolute; inset: 0; pointer-events: none; }
+.smoke-haze i { position: absolute; border-radius: 50%; transform: translate(-50%, -50%) scale(0); opacity: 0; background: radial-gradient(circle, rgba(236, 242, 228, 0.92) 0%, rgba(205, 220, 196, 0.7) 40%, rgba(160, 185, 150, 0) 72%); filter: blur(14px); animation: cloud 7s ease-in-out infinite; }
+@keyframes cloud { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 22% { opacity: 0.96; } 45% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.9; } 100% { transform: translate(calc(-50% + var(--dx)), -64%) scale(1.5); opacity: 0.38; } }
+.smoke-inner { position: relative; display: grid; justify-items: center; gap: 10px; text-align: center; width: 100%; max-width: 440px; }
+.smoke-char { width: min(64vw, 270px); height: auto; opacity: 0; transform: scale(0.2) rotate(-18deg); filter: drop-shadow(0 12px 0 rgba(0,0,0,0.4)); }
+.phase-1 .smoke-char, .phase-2 .smoke-char, .phase-3 .smoke-char, .phase-4 .smoke-char { animation: charIn 1s cubic-bezier(.2,1.6,.4,1) both, headbob 4s ease-in-out 1s infinite; }
+@keyframes charIn { from { opacity: 0; transform: translateY(60px) scale(0.2) rotate(-18deg); } to { opacity: 1; transform: none; } }
+.smoke-title { margin: 0; font-size: clamp(1.5rem, 7vw, 2rem); line-height: 1.1; font-weight: 800; opacity: 0; color: var(--cream); text-shadow: 0 3px 0 rgba(0,0,0,0.45); }
+.phase-2 .smoke-title, .phase-3 .smoke-title, .phase-4 .smoke-title { animation: pop 0.5s both; }
+.smoke-name { display: inline-block; min-width: 3ch; color: var(--yellow); padding: 0 6px; border-radius: 10px; background: rgba(0,0,0,0.35); }
+.smoke-name.is-set { animation: landed 0.6s cubic-bezier(.2,2,.4,1); background: var(--yellow); color: var(--ink); }
+.smoke-nums { display: flex; gap: 10px; opacity: 0; transition: opacity 0.4s; }
+.smoke-nums.on { opacity: 1; }
+.smoke-nums span { width: 52px; height: 64px; display: grid; place-items: center; font-weight: 800; font-size: 1.8rem; border-radius: 14px; background: rgba(0,0,0,0.35); color: var(--muted); border: 2px solid var(--line); transition: transform 0.1s, background 0.1s, color 0.1s, box-shadow 0.1s; }
+.smoke-nums span.lit { background: var(--yellow); color: var(--ink); border-color: var(--yellow); transform: translateY(-10px) scale(1.15); box-shadow: 0 0 22px 4px rgba(255, 209, 102, 0.7); }
+.smoke-nums span.won { background: var(--coral); color: var(--ink); border-color: var(--coral); transform: scale(1.3) translateY(-6px); box-shadow: 0 0 28px 8px rgba(255, 107, 107, 0.7); animation: landed 0.6s cubic-bezier(.2,2,.4,1); }
+.smoke-result { margin: 0; min-height: 1.4em; font-size: 1.5rem; font-weight: 800; color: var(--yellow); text-shadow: 0 3px 0 rgba(0,0,0,0.5); }
+.phase-4 .smoke-result { animation: pop 0.5s both; }
+.smoke-actions { display: grid; gap: 10px; width: 100%; margin-top: 4px; animation: slideUp 0.5s both; }
+:root[data-motion="reduced"] .smoke-haze i { transform: translate(-50%, -50%) scale(1); opacity: 0.4; animation: none; }
+:root[data-motion="reduced"] .smoke-char, :root[data-motion="reduced"] .smoke-title, :root[data-motion="reduced"] .smoke-nums { opacity: 1; transform: none; animation: none; }
+
+/* legibilidad sobre el humo claro: el texto va sobre un panel oscuro */
+.smoke-title, .smoke-result { background: rgba(14, 20, 12, 0.72); padding: 8px 14px; border-radius: 16px; backdrop-filter: blur(4px); }
+.smoke-result { min-height: 1.4em; }
+.phase-0 .smoke-result, .phase-1 .smoke-result, .phase-2 .smoke-result, .phase-3 .smoke-result { background: transparent; backdrop-filter: none; }
+.smoke-nums span { background: rgba(14, 20, 12, 0.78); }
+.smoke-haze i { background: radial-gradient(circle, rgba(214, 224, 205, 0.88) 0%, rgba(176, 196, 168, 0.66) 40%, rgba(140, 165, 130, 0) 72%); }
+.smoke-actions .btn-ghost { background: rgba(14, 20, 12, 0.82); }
