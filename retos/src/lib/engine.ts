@@ -392,6 +392,13 @@ export function applyAction(
     if (room.phase !== "lobby" && room.phase !== "ended" && room.players.length < LIMITS.minPlayers) { room.phase = "ended"; room.turn = null; }
     return;
   }
+  if (a.type === "rematch") {
+    if (room.phase !== "ended") throw new GameError("wrong_phase", "La partida todavía no terminó.", 409);
+    // Revancha: misma sala y mismos jugadores, todo en cero; vuelven a tocar "listo".
+    Object.assign(room, { phase: "lobby", phaseAt: now, paused: false, pausedBy: null, endVotes: [], round: 0, roundSize: 0, resolved: 0, pool: [], turn: null, history: [], summary: null });
+    for (const p of room.players) Object.assign(p, { active: true, ready: false, jokers: [], total: zero(), round: zero(), challenge: null });
+    return;
+  }
   if (room.phase === "ended") throw new GameError("ended", "La partida terminó.", 409);
   if (room.paused) throw new GameError("paused", "La partida está en pausa.", 409);
 

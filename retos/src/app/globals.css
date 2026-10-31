@@ -392,3 +392,11 @@ button.card-back:not(:disabled):hover { box-shadow: 0 10px 0 rgba(0,0,0,.45), 0 
 .flip-back.is-text { padding: 18px; }
 .flip-text { font-size: clamp(1.15rem, 5.4vw, 1.6rem); line-height: 1.15; font-weight: 800; text-align: center; overflow-wrap: anywhere; }
 .face-challenge.is-hidden { background: transparent; border: 2px dashed var(--ink); font-size: 1.05rem; opacity: 0.75; }
+
+/* Mejoras: cartas compactas con muchos jugadores, WhatsApp, Inspirame */
+.cards.dense { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 10px; }
+.cards.dense .card-num { font-size: 3rem; }
+.cards.dense .card-back { border-radius: 14px; }
+.cards.dense .card-corner { font-size: 0.85rem; }
+.btn-whatsapp { background: #25D366; color: #0B2B17; border-color: var(--ink); box-shadow: 0 5px 0 #11793A; width: 100%; margin-top: 12px; }
+.idea-btn { min-height: 40px; padding: 4px 14px; font-size: 0.9rem; }

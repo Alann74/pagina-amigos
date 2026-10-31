@@ -32,6 +32,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ code: string }
       }
     });
     if (!out) throw new GameError("not_found", "No encontramos esa sala. Revisá el código.", 404);
+    await store.touch(code, out.result.playerId, now); // recién entró: cuenta como conectado aunque todavía no haya consultado
     return json({ code, ...out.result });
   } catch (e) { return fail(e); }
 }

@@ -101,6 +101,17 @@ function Room({ view, online, busy, send, toast, toasts, onLeave }: {
   const prevTurn = useRef<string | null>(null);
   useEffect(() => { if (myTurnKey && myTurnKey !== prevTurn.current && !showReveal) { sfx.turn(); if (navigator.vibrate) navigator.vibrate(60); } prevTurn.current = myTurnKey; }, [myTurnKey, showReveal]);
 
+  // Que la pantalla no se apague mientras se juega
+  useEffect(() => {
+    let lock: { release: () => Promise<void> } | null = null;
+    const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } };
+    const get = async () => { try { if (nav.wakeLock && document.visibilityState === "visible") lock = await nav.wakeLock.request("screen"); } catch { /* sin permiso o sin soporte */ } };
+    void get();
+    const onVis = () => { if (document.visibilityState === "visible") void get(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { document.removeEventListener("visibilitychange", onVis); void lock?.release().catch(() => {}); };
+  }, []);
+
   // Sonido al entrar alguien nuevo a la sala de espera
   const prevCount = useRef(view.players.length);
   useEffect(() => { if (view.phase === "lobby" && view.players.length > prevCount.current) sfx.pop(); prevCount.current = view.players.length; }, [view.players.length, view.phase]);

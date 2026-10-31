@@ -448,3 +448,23 @@ test("con 15 jugadores la ronda reparte 15 cartas y 15 retos", () => {
   assert.equal(new Set(turn(room).cards).size, 15);
   assert.equal(ids.length, 15);
 });
+
+test("revancha: misma sala y jugadores, todo en cero, vuelven a estar 'listos'; solo al terminar", () => {
+  const { room, ids } = setup(["A", "B", "C"]);
+  throwsCode(() => act(room, ids[0], { type: "rematch" }), "wrong_phase");
+  everyoneVotes(room, ids, () => 1);
+  const t = turn(room);
+  act(room, t.holderId!, { type: "fulfill", turnKey: t.key });
+  judgeConfirms(room);
+  ids.slice(0, 2).forEach((id) => act(room, id, { type: "voteEnd", on: true }));
+  assert.equal(room.phase, "ended");
+  act(room, ids[2], { type: "rematch" });
+  assert.equal(room.phase, "lobby");
+  assert.equal(room.players.length, 3);
+  assert.ok(room.players.every((p) => !p.ready && p.active && p.jokers.length === 0 && p.total.done === 0 && p.challenge === null));
+  assert.equal(room.history.length, 0);
+  assert.equal(room.round, 0);
+  ids.forEach((id) => act(room, id, { type: "ready", ready: true }));
+  assert.equal(room.phase, "writing", "se puede volver a jugar");
+  assert.equal(room.round, 1);
+});

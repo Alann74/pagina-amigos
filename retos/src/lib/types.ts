@@ -129,6 +129,7 @@ export type Action =
   | { type: "pause" }
   | { type: "resume" }
   | { type: "voteEnd"; on: boolean }
-  | { type: "leave" };
+  | { type: "leave" }
+  | { type: "rematch" };
 
 export const LIMITS = { name: 20, challenge: 140, alt: 140, maxPlayers: 15, minPlayers: 3 } as const;

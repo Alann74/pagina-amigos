@@ -24,7 +24,7 @@ export function Reveal({ kind, turn, holderName, onClose }: { kind: "p" | "c"; t
     if (reduced) { sfx.reveal(); const a = setTimeout(() => closeRef.current(), 20000); return () => clearTimeout(a); }
     const T: ReturnType<typeof setTimeout>[] = [];
     const pool = tie ? tiedArr! : cards;
-    const total = tie ? 18 : 14;
+    const total = cards.length === 1 ? 1 : isC ? (tie ? 12 : 9) : (tie ? 18 : 14);
     const seq: number[] = [];
     let prev = -1;
     for (let i = 0; i < total - 1; i++) {
@@ -42,9 +42,9 @@ export function Reveal({ kind, turn, holderName, onClose }: { kind: "p" | "c"; t
     });
     const landAt = t + 250;
     T.push(setTimeout(() => { setLanded(true); sfx.heartbeat(); }, landAt));
-    T.push(setTimeout(() => { setStep(1); sfx.flip(); }, landAt + 900));
-    T.push(setTimeout(() => { setStep(2); sfx.reveal(); if (navigator.vibrate) navigator.vibrate([60, 40, 90]); }, landAt + 1700));
-    T.push(setTimeout(() => setStep(3), landAt + 2800));
+    T.push(setTimeout(() => { setStep(1); sfx.flip(); }, landAt + (isC ? 600 : 900)));
+    T.push(setTimeout(() => { setStep(2); sfx.reveal(); if (navigator.vibrate) navigator.vibrate([60, 40, 90]); }, landAt + (isC ? 1250 : 1700)));
+    T.push(setTimeout(() => setStep(3), landAt + (isC ? 2100 : 2800)));
     T.push(setTimeout(() => closeRef.current(), 25000));
     return () => T.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps

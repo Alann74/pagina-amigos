@@ -70,6 +70,8 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   check(true, "4 jugadores en la sala de espera, entrando por enlace");
   await shot("Ana", "02-sala-espera-anfitrion"); await shot("Beto", "03-sala-espera-jugador");
   await noOverflow("Ana", "sala de espera");
+  check((await pages.Beto.getByRole("link", { name: /Invitar por WhatsApp/ }).getAttribute("href"))?.startsWith("https://wa.me/?text=") === true, "botón para invitar por WhatsApp con el código y el enlace");
+  check((await pages.Beto.locator("details.qr-box").count()) === 1, "el QR está disponible (plegado)");
   check((await pages.Ana.getByText(/Anfitri/).count()) === 0 && (await pages.Beto.getByText(/Anfitri/).count()) === 0, "no hay anfitrión: nadie tiene rol especial");
   check((await btn("Beto", /Estoy listo/).count()) === 1 && (await btn("Ana", /Estoy listo/).count()) === 1, "quien creó la sala también tiene que tocar “listo” como los demás");
   await click("Ana", /Estoy listo/); await click("Beto", /Estoy listo/); await click("Cami", /Estoy listo/);
@@ -80,6 +82,8 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   // 2. Retos en privado
   for (const n of NAMES) await pages[n].getByLabel("Escribí tu reto en privado").waitFor();
   await shot("Beto", "04-escribir-reto"); await noOverflow("Beto", "escritura");
+  await click("Cami", /Inspirame/);
+  check((await pages.Cami.getByLabel("Escribí tu reto en privado").inputValue()).length > 10, "“Inspirame” completa una idea de reto");
   const retos = { Ana: "Imitar a un pirata", Beto: "Cantar un tema de cumbia", Cami: "Hablar en rima un minuto", Dani: "Bailar sin música" };
   for (const n of NAMES.slice(0, 3)) {
     await pages[n].getByLabel("Escribí tu reto en privado").fill(retos[n]);
@@ -269,6 +273,9 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await text("Beto", /Así quedó la mesa/);
   await shot("Beto", "20-final");
   check(true, "la partida termina por votación de la mayoría (3 de 4) y todos ven el ranking");
+  await click("Beto", /Revancha/);
+  for (const n of ["Ana", "Beto", "Cami", "Dani"]) await pages[n].getByRole("button", { name: /Estoy listo/ }).waitFor({ timeout: 15000 });
+  check((await pages.Ana.locator(".pills li").count()) === 4, "revancha: misma sala con los 4 jugadores, de nuevo en la sala de espera");
 
   await browser.close();
   const bad = results.filter((r) => !r[0]).length;

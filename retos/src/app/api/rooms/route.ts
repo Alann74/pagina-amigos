@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     for (let i = 0; i < 8; i++) {
       const code = newRoomCode(cryptoRng);
       const { room, token, playerId } = createRoom(String(body.name ?? ""), now, code);
-      if (await store.create(room)) return json({ code, token, playerId });
+      if (await store.create(room)) { await store.touch(code, playerId, now); return json({ code, token, playerId }); }
     }
     throw new GameError("busy", "No pudimos generar una sala. Probá de nuevo.", 503);
   } catch (e) { return fail(e); }

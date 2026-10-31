@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { FACTS } from "@/lib/facts";
+import { IDEAS } from "@/lib/ideas";
 import { sfx } from "@/lib/sfx";
 import { IDLE_MS, LIMITS } from "@/lib/types";
 import type { Action, RoomView, ViewPlayer, ViewTurn } from "@/lib/types";
@@ -110,6 +111,9 @@ export function Lobby({ c }: { c: Ctx }) {
           <button className="btn btn-secondary" onClick={share}><Icon name="share" />Compartir enlace</button>
           <button className="btn btn-ghost" onClick={() => navigator.clipboard?.writeText(url).then(() => c.toast("Enlace copiado")).catch(() => {})}><Icon name="copy" />Copiar</button>
         </div>
+        <a className="btn btn-whatsapp" target="_blank" rel="noopener noreferrer" href={`https://wa.me/?text=${encodeURIComponent(`Entrá a mi sala de Boca Abajo 🐵 Código: ${view.code}\n${url}`)}`}>
+          <Icon name="share" />Invitar por WhatsApp
+        </a>
         {qr && <details className="qr-box"><summary>Mostrar QR para que escaneen</summary><img className="qr" src={qr} width={140} height={140} alt={`Código QR para entrar a la sala ${view.code}`} /></details>}
       </div>
 
@@ -166,7 +170,10 @@ export function Writing({ c }: { c: Ctx }) {
           <label htmlFor="reto" className="h2">Escribí tu reto en privado</label>
           <p className="muted">Nadie sabrá que lo escribiste vos. Pensá algo divertido que cualquiera de la sala pueda cumplir.</p>
           <textarea id="reto" className="input" rows={4} maxLength={LIMITS.challenge} value={text} placeholder={ph} onChange={(e) => setText(e.target.value)} />
-          <div className="row between"><span className="muted small">{text.length}/{LIMITS.challenge}</span></div>
+          <div className="row between">
+            <span className="muted small">{text.length}/{LIMITS.challenge}</span>
+            <button type="button" className="btn btn-ghost idea-btn" onClick={() => { sfx.tap(); setText((cur) => { let n = IDEAS[Math.floor(Math.random() * IDEAS.length)]; for (let i = 0; i < 5 && n === cur; i++) n = IDEAS[Math.floor(Math.random() * IDEAS.length)]; return n; }); }}><Icon name="star" size={16} />Inspirame</button>
+          </div>
           <button className="btn btn-primary btn-xl" type="submit" disabled={busy || text.trim().length < 3}>{mine ? "Guardar cambio" : "Enviar reto"}</button>
         </form>
       )}
@@ -201,7 +208,7 @@ export function Voting({ c, turn }: { c: Ctx; turn: ViewTurn }) {
           <p className="muted small">Cada carta esconde a un jugador. Después se vota qué reto le toca.</p>
         </div>
       </div>
-      <div className="cards" role="group" aria-label="Cartas boca abajo">
+      <div className={`cards${turn.cardCount > 6 ? " dense" : ""}`} role="group" aria-label="Cartas boca abajo">
         {Array.from({ length: turn.cardCount }, (_, i) => i + 1).map((n) => (
           <CardBack key={n} n={n} dealt={n} selected={canVote && sel === n} voted={turn.myVote === n}
             onClick={canVote ? () => { setSel(n); sfx.tap(); } : undefined} disabled={busy} />
@@ -244,7 +251,7 @@ function PickStage({ c, turn }: { c: Ctx; turn: ViewTurn }) {
           <p className="muted small">{holder === view.me.id ? "Nunca sale un reto escrito por vos." : "Nadie sabe quién escribió cada reto. Nunca sale uno de la persona elegida."}</p>
         </div>
       </div>
-      <div className="cards" role="group" aria-label="Cartas de reto boca abajo">
+      <div className={`cards${count > 6 ? " dense" : ""}`} role="group" aria-label="Cartas de reto boca abajo">
         {Array.from({ length: count }, (_, i) => i + 1).map((n) => (
           <CardBack key={n} n={n} dealt={n} selected={canPick && sel === n} voted={turn.myPick === n}
             onClick={canPick ? () => { setSel(n); sfx.tap(); } : undefined} disabled={busy} />
@@ -450,7 +457,8 @@ export function Final({ c }: { c: Ctx }) {
           </li>
         ))}
       </ol>
-      <a className="btn btn-primary btn-xl" href="/">Jugar otra partida</a>
+      <button className="btn btn-primary btn-xl" disabled={c.busy} onClick={() => { sfx.ok(); void c.send({ type: "rematch" }).then((e) => e && c.toast(e)); }}>¡Revancha! Misma sala, mismos jugadores</button>
+      <a className="btn btn-ghost" href="/">Salir al inicio</a>
     </section>
   );
 }
