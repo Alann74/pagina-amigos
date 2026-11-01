@@ -231,7 +231,7 @@ function check(ok, msg) { results.push([ok, msg]); console.log(ok ? "  ✔" : " 
   await pages.Ana.waitForTimeout(2200); await shot("Ana", "ruleta-2-personaje-y-nombre");
   check(await pages.Ana.getByText(/Cuántas secas va a dar/).first().isVisible(), "el título dice “¿Cuántas secas va a dar (nombre)?”");
   check((await pages.Ana.locator(".wheel").count()) === 1, "es una rueda (ruleta) que gira");
-  await pages.Ana.getByRole("button", { name: /Hacelo cagón$/ }).waitFor({ timeout: 40000 });
+  await pages.Ana.getByRole("button", { name: /Hacelo cagón$/ }).waitFor({ timeout: 70000 });
   await shot("Ana", "ruleta-3-resultado");
   let pasos = 0; for (const n of NAMES) pasos += await pages[n].getByRole("button", { name: /Paso/ }).count();
   check(pasos === 0, "no hay botón para pasar: es obligatorio");

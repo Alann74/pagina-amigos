@@ -26,49 +26,74 @@ export function SmokeRoulette({ view, onNext }: { view: RoomView; onNext: (id: s
   const { reduced } = useSettings();
   const names = view.players.filter((p) => p.active).map((p) => p.name);
   const chosen = view.players.find((p) => p.id === sm.playerId)?.name ?? "alguien";
-  const stale = view.serverNow - sm.at > 14000; // quien reconecta tarde ve el resultado directo
+  const stale = view.serverNow - sm.at > 30000; // quien reconecta tarde ve el resultado directo
   const instant = reduced || stale;
   // fase: 0 humo · 1 irrumpe el personaje · 2 pregunta y gira el nombre · 3 gira la rueda · 4 resultado
   const [phase, setPhase] = useState(instant ? 4 : 0);
   const [shownName, setShownName] = useState(instant ? chosen : "…");
   const [slot, setSlot] = useState(0);
-  const jitter = useRef((Math.random() - 0.5) * 40).current;
-  const [spin, setSpin] = useState<number>(instant ? landing(sm.count, jitter) % 360 : 0);
+  const jitter = useRef((Math.random() < 0.5 ? -1 : 1) * (22 + Math.random() * 9)).current; // cae cerca del borde del sector: "casi" en el de al lado
   const [flap, setFlap] = useState(0);
+  const [tense, setTense] = useState(false);
+  const [hint, setHint] = useState("");
+  const [shownSecas, setShownSecas] = useState(instant ? sm.count : 0);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [, tick] = useState(0);
   const start = useRef(Date.now());
   const tilt = useRef<HTMLDivElement>(null);
+  const wheelRef = useRef<SVGSVGElement>(null);
+  const raf = useRef(0);
 
   useEffect(() => {
     if (instant) return;
     const T: ReturnType<typeof setTimeout>[] = [];
+    const at = (ms: number, fn: () => void) => T.push(setTimeout(fn, ms));
     sfx.smoke();
-    T.push(setTimeout(() => { setPhase(1); sfx.thump(); if (navigator.vibrate) navigator.vibrate(60); }, 1500));
-    // el nombre gira (cada vez más lento) y aterriza en el elegido
+    at(300, () => setHint("Se viene el humo…"));
+    at(2700, () => { setPhase(1); setHint(""); sfx.thump(); if (navigator.vibrate) navigator.vibrate(70); });
+    // 2) el nombre gira, cada vez más lento, y frena con suspenso en el elegido
     const pool = names.length > 1 ? names : [chosen, chosen];
     const seq: string[] = [];
-    for (let i = 0; i < 15; i++) { let n = pool[Math.floor(Math.random() * pool.length)]; if (n === seq[seq.length - 1]) n = pool[(pool.indexOf(n) + 1) % pool.length]; seq.push(n); }
+    for (let i = 0; i < 30; i++) { let n = pool[Math.floor(Math.random() * pool.length)]; if (n === seq[seq.length - 1]) n = pool[(pool.indexOf(n) + 1) % pool.length]; seq.push(n); }
     if (seq[seq.length - 1] === chosen) seq[seq.length - 1] = pool.find((n) => n !== chosen) ?? chosen;
     seq.push(chosen);
-    let t = 2700;
-    T.push(setTimeout(() => setPhase(2), t));
-    seq.forEach((n, i) => { t += 75 + Math.pow(i / seq.length, 3) * 330; T.push(setTimeout(() => { setShownName(n); setSlot((k) => k + 1); sfx.tick(i); }, t)); });
-    t += 800; // el nombre queda; sube la rueda y gira
-    T.push(setTimeout(() => { setPhase(3); sfx.heartbeat(); }, t));
-    T.push(setTimeout(() => setSpin(landing(sm.count, jitter)), t + 450));
-    for (let i = 0; i < 40; i++) { const at = t + 450 + 4500 * (1 - Math.pow(1 - i / 40, 1 / 2.2)); T.push(setTimeout(() => { sfx.tick(Math.min(i, 20)); setFlap((k) => k + 1); }, at)); }
-    t += 450 + 4800;
-    T.push(setTimeout(() => { setPhase(4); sfx.reveal(); sfx.thump(); if (navigator.vibrate) navigator.vibrate([80, 40, 140]); }, t));
-    return () => T.forEach(clearTimeout);
+    let t = 4400;
+    at(t, () => { setPhase(2); setHint("Elegimos a quién le toca…"); sfx.riser(5.6); });
+    seq.forEach((n, i) => { t += 55 + 640 * Math.pow(i / seq.length, 4); at(t, () => { setShownName(n); setSlot((k) => k + 1); sfx.tick(Math.min(i, 24)); }); });
+    t += 500;
+    at(t, () => { setHint(`¡Le toca a ${chosen}!`); sfx.thump(); if (navigator.vibrate) navigator.vibrate([60, 40, 100]); });
+    t += 1700; // 3) sube la rueda y gira ~8 s, frenando de a poco
+    at(t, () => { setPhase(3); setHint("Girando la rueda…"); sfx.heartbeat(); });
+    const SPIN_START = t + 1100, SPIN_MS = 8200, total = landing(sm.count, jitter);
+    at(SPIN_START - 100, () => sfx.riser(5.5));
+    let lastPin = 0, lastTick = 0, lastBeat = 0;
+    at(SPIN_START, () => {
+      const t0 = performance.now();
+      const frame = (now: number) => {
+        const k = Math.min(1, (now - t0) / SPIN_MS), ang = total * (1 - Math.pow(1 - k, 4.4));
+        if (wheelRef.current) wheelRef.current.style.transform = `rotate(${ang}deg)`;
+        const pin = Math.floor(ang / 18);
+        if (pin !== lastPin && now - lastTick > 38) { sfx.tick(Math.min(24, Math.round((1 - k) * 24))); setFlap((f) => f + 1); lastTick = now; }
+        lastPin = pin;
+        if (k > 0.55 && now - lastBeat > 900 - 380 * (k - 0.55)) { sfx.heartbeat(); if (navigator.vibrate) navigator.vibrate(25); lastBeat = now; }
+        if (k < 1) raf.current = requestAnimationFrame(frame);
+      };
+      raf.current = requestAnimationFrame(frame);
+    });
+    at(SPIN_START + SPIN_MS * 0.45, () => { setTense(true); setHint("¡Ya casi…!"); });
+    at(SPIN_START + SPIN_MS * 0.8, () => setHint("¿Cae ahí…?"));
+    t = SPIN_START + SPIN_MS + 700;
+    at(t, () => { setTense(false); setPhase(4); setHint(""); sfx.reveal(); sfx.thump(); if (navigator.vibrate) navigator.vibrate([80, 40, 160]); });
+    for (let i = 0; i < sm.count; i++) at(t + 1500 + i * 800, () => { setShownSecas(i + 1); sfx.puff(); if (navigator.vibrate) navigator.vibrate(30); });
+    return () => { T.forEach(clearTimeout); cancelAnimationFrame(raf.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sm.id]);
 
   // el servidor no deja seguir antes de SMOKE_MIN_MS desde que salió la ruleta
   useEffect(() => { const i = setInterval(() => tick((n) => n + 1), 500); return () => clearInterval(i); }, []);
   const left = Math.max(0, Math.ceil((SMOKE_MIN_MS - (view.serverNow - sm.at) - (Date.now() - start.current)) / 1000));
-  const ready = phase >= 4 && left <= 0;
+  const ready = phase >= 4 && shownSecas >= sm.count && left <= 0;
 
   const go = async () => { setBusy(true); setErr(""); const e = await onNext(sm.id); setBusy(false); if (e) setErr(e); };
   // 3D: el personaje se inclina hacia donde tocás / movés el mouse
@@ -81,7 +106,7 @@ export function SmokeRoulette({ view, onNext }: { view: RoomView; onNext: (id: s
 
   const f = FILLS;
   return (
-    <div className={`smoke-ov sm phase-${phase}${instant ? " is-instant" : ""}`} role="dialog" aria-modal="true" aria-label="Ruleta de humo" onPointerMove={onMove}>
+    <div className={`smoke-ov sm phase-${phase}${instant ? " is-instant" : ""}${tense ? " is-tense" : ""}`} role="dialog" aria-modal="true" aria-label="Ruleta de humo" onPointerMove={onMove}>
       <div className="sm-rays" aria-hidden="true" />
       <div className="sm-spores" aria-hidden="true">{SPORES.map((p, i) => <i key={i} style={{ left: p.x, width: p.s, height: p.s, animationDelay: p.d, animationDuration: p.t, ["--dx" as string]: p.dx }} />)}</div>
       <div className="sm-fog" aria-hidden="true">{CLOUDS.map((c, i) => <i key={i} style={{ left: c.x, top: c.y, width: c.s, height: c.s, animationDelay: c.d, ["--dx" as string]: c.dx }} />)}</div>
@@ -107,12 +132,12 @@ export function SmokeRoulette({ view, onNext }: { view: RoomView; onNext: (id: s
         </div>
 
         {/* Rueda 3D */}
-        <div className={`sm-wheelbox${phase >= 3 ? " on" : ""}`} aria-hidden="true">
+        <div className={`sm-wheelbox${phase >= 3 ? " on" : ""}${tense ? " is-tense" : ""}`} aria-hidden="true">
           <span className="sm-wheel-shadow" />
           <div className="sm-wheel3d">
             <span className="sm-wheel-depth" />
             <span key={flap} className="sm-pointer" />
-            <svg className={`wheel${phase >= 3 && !instant ? " spinning" : ""}`} viewBox="-100 -100 200 200" style={{ transform: `rotate(${spin}deg)` }}>
+            <svg ref={wheelRef} className="wheel" viewBox="-100 -100 200 200" style={instant ? { transform: `rotate(${landing(sm.count, jitter) % 360}deg)` } : undefined}>
               <defs>
                 {f.map((c, i) => (
                   <radialGradient key={i} id={`sg${i}`} cx="0" cy="0" r="95" gradientUnits="userSpaceOnUse"><stop offset="0" stopColor={c[1]} /><stop offset="0.55" stopColor={c[0]} /><stop offset="1" stopColor={c[1]} /></radialGradient>
@@ -138,13 +163,18 @@ export function SmokeRoulette({ view, onNext }: { view: RoomView; onNext: (id: s
 
         {/* Resultado y botón */}
         <div className="sm-foot">
-          {phase >= 2 && phase < 4 && <p className="sm-hint">La rueda decide. Nadie elige.</p>}
+          {hint && phase < 4 && <p key={hint} className="sm-hint">{hint}</p>}
           <p className="smoke-result" aria-live="polite">
             {phase >= 4 ? <>{chosen} da <b className="sm-num">{sm.count}</b> {sm.count === 1 ? "seca" : "secas"}. <span className="sm-must">Es obligatorio.</span></> : " "}
           </p>
           {phase >= 4 && (
+            <div className="sm-secas" aria-hidden="true">
+              {Array.from({ length: sm.count }, (_, i) => <span key={i} className={`sm-seca${i < shownSecas ? " on" : ""}`}><b>{i + 1}</b></span>)}
+            </div>
+          )}
+          {phase >= 4 && (
             <div className="smoke-actions">
-              <button className="btn btn-smoke btn-xl" disabled={!ready || busy} onClick={go}>{ready ? "Hacelo cagón" : `Hacelo cagón (${left} s)`}</button>
+              <button className="btn btn-smoke btn-xl" disabled={!ready || busy} onClick={go}>{ready || left <= 0 ? "Hacelo cagón" : `Hacelo cagón (${left} s)`}</button>
               {err && <p className="error" role="alert">{err}</p>}
             </div>
           )}

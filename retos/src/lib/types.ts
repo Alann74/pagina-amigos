@@ -8,7 +8,7 @@ export type ResolutionKind = "done" | "alt" | "withdraw";
 export const IDLE_MS = 45000; // tras este tiempo sin respuesta, cualquiera puede destrabar
 export const PRESENCE_MS = 15000;
 export const SMOKE_EVERY = 3; // la ruleta de humo sale siempre, cada 3 retos resueltos
-export const SMOKE_MIN_MS = 9000; // lo que dura la animación; antes no se puede seguir
+export const SMOKE_MIN_MS = 20000; // lo que dura la animación (~26 s en pantalla); antes no se puede seguir
 
 export interface ViewPlayer {
   id: string;

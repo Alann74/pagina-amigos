@@ -25,6 +25,9 @@ function tone(freq: number, start: number, dur: number, type: OscillatorType = "
 }
 function buzz(ms: number) { if (enabled && typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(ms); }
 export const sfx = {
+  /** Subida de tensión: un tono que sube y se hace más fuerte durante `sec` segundos. */
+  riser(sec: number) { const c = ac(); if (!c) return; const o = c.createOscillator(), g = c.createGain(); o.type = "sawtooth"; o.frequency.setValueAtTime(110, c.currentTime); o.frequency.exponentialRampToValueAtTime(880, c.currentTime + sec); g.gain.setValueAtTime(0.0001, c.currentTime); g.gain.exponentialRampToValueAtTime(0.07, c.currentTime + sec * 0.95); g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + sec + 0.12); o.connect(g).connect(c.destination); o.start(); o.stop(c.currentTime + sec + 0.2); },
+  puff() { tone(260, 0, 0.22, "triangle", 0.09, 120); tone(640, 0.03, 0.12, "sine", 0.05, 300); },
   thump() { tone(95, 0, 0.35, "sine", 0.26, 38); tone(180, 0, 0.08, "square", 0.05, 60); },
   smoke() { // ráfaga de humo: ruido filtrado que sube y se apaga
     const c = ac(); if (!c) return;

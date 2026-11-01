@@ -498,3 +498,23 @@ button.card-back:not(:disabled):hover { box-shadow: 0 10px 0 rgba(0,0,0,.45), 0 
 .sm-hint + .smoke-result { display: none; }
 .sm-char { width: 114%; margin-left: -7%; }
 @media (max-height: 760px) { .sm-foot { min-height: 136px; } }
+
+/* ---- más duración y suspenso ---- */
+.wheel.spinning { transition: none; }
+.sm-hint { font-size: 1.05rem; animation: hintIn 0.4s cubic-bezier(.2, 1.6, .4, 1) both, hintPulse 1.2s ease-in-out 0.4s infinite; }
+@keyframes hintIn { from { opacity: 0; transform: scale(0.6) translateY(10px); } }
+.sm-wheelbox { transition: transform 0.9s ease, filter 0.9s ease; }
+.sm-wheelbox.is-tense { transform: scale(1.1); filter: drop-shadow(0 0 22px rgba(255, 209, 102, 0.55)); }
+.is-tense .sm::after, .sm.is-tense::after { animation: tensePulse 0.85s ease-in-out infinite; }
+@keyframes tensePulse { 50% { background: radial-gradient(110% 80% at 50% 45%, transparent 38%, rgba(0, 0, 0, 0.72)); } }
+.sm.is-tense .sm-char-sway { animation: sway 4.6s ease-in-out infinite, nerv 0.18s linear infinite; }
+@keyframes nerv { 0%, 100% { translate: 0 0; } 25% { translate: -2px 1px; } 75% { translate: 2px -1px; } }
+.sm-secas { display: flex; gap: 10px; justify-content: center; min-height: 54px; }
+.sm-seca { position: relative; width: 50px; height: 50px; display: grid; place-items: center; border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.25); color: rgba(255, 255, 255, 0.35); background: rgba(7, 18, 10, 0.55); transform: scale(0.8); transition: all 0.3s; }
+.sm-seca b { font-size: 1.3rem; font-weight: 800; }
+.sm-seca.on { color: #14210d; border-color: #07120a; background: radial-gradient(circle at 35% 30%, #FFFFFF, #DCEFD2 55%, #9CC490); transform: scale(1); box-shadow: 0 4px 0 #07120a, 0 0 18px rgba(197, 248, 42, 0.7); animation: secaPop 0.6s cubic-bezier(.2, 2.2, .4, 1); }
+@keyframes secaPop { from { transform: scale(0.1) rotate(-40deg); opacity: 0; } }
+.sm-foot { min-height: 214px; }
+@media (max-height: 760px) { .sm-foot { min-height: 176px; } .sm-seca { width: 42px; height: 42px; } .sm-secas { min-height: 44px; } }
+:root[data-motion="reduced"] .sm-wheelbox.is-tense { transform: none; filter: none; }
+:root[data-motion="reduced"] .sm-seca { transition: none; animation: none; }
